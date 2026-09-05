@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="description" content="Promociones deportivas activas de Fuera de Lugar Sport">
+  <meta name="theme-color" content="#ffffff">
+  <link rel="icon" type="image/png" sizes="256x256" href="img/logo-icon.png">
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <title>Promociones | Fuera de Lugar Sport</title>
+</head>
+<body data-page="promotions">
+  <a class="skip-link" href="#main">Saltar al contenido</a>
+  <div id="site-header"></div>
+  <main id="main" class="container page promotions-page">
+    <nav class="breadcrumbs" aria-label="Migas de pan"><a href="index.html">Inicio</a><span>›</span><span>Promociones</span></nav>
+    <header class="promo-header">
+      <div class="promo-header__copy">
+        <span class="eyebrow eyebrow--sale">Ofertas activas</span>
+        <h1>Promociones</h1>
+        <p><strong>Juega más. Paga menos.</strong><span>Precios especiales por tiempo limitado.</span></p>
+      </div>
+      <div class="promo-header__actions" aria-label="Acciones de promociones">
+        <button id="open-promo-filters" class="promo-action promo-action--primary" type="button" aria-controls="promotion-filters" aria-expanded="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>
+          <span>Filtrar <b id="promo-filter-count"></b></span>
+        </button>
+        <label class="promo-sort"><span>Ordenar</span><select id="promo-sort-select" aria-label="Ordenar promociones"><option value="commercial">Relevancia</option><option value="discount">Mayor descuento</option><option value="price-asc">Precio menor</option><option value="price-desc">Precio mayor</option><option value="newest">Más recientes</option><option value="name">A-Z</option></select></label>
+        <button id="share-promos" class="promo-action" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.5"></circle><circle cx="6" cy="12" r="2.5"></circle><circle cx="18" cy="19" r="2.5"></circle><path d="m8.2 10.8 7.6-4.5M8.2 13.2l7.6 4.5"></path></svg>
+          <span>Compartir</span>
+        </button>
+      </div>
+    </header>
+    <div class="catalog-layout promotions-layout">
+      <aside id="promotion-filters" class="filters promo-filters" aria-label="Filtros de promociones"></aside>
+      <section class="promotion-results" aria-labelledby="promo-results-title">
+        <div class="catalog-summary promo-summary">
+          <h2 id="promo-results-title" class="sr-only">Productos en promoción</h2>
+          <span id="promotion-result-count" aria-live="polite">Buscando ofertas…</span>
+          <button id="clear-promo-filters" class="clear-filter-button" type="button" hidden>Limpiar filtros</button>
+        </div>
+        <div id="promotion-products" class="product-grid skeleton-grid" aria-live="polite" aria-busy="true"></div>
+        <button id="load-more-promos" class="btn btn--ghost load-more" type="button" hidden>Cargar más ofertas</button>
+      </section>
+    </div>
+  </main>
+  <div id="site-footer"></div>
+  <div id="mobile-nav"></div>
+  <div id="toast-root" aria-live="polite"></div>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

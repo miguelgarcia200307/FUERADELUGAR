@@ -1,1 +1,108 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#ffffff"><link rel="icon" type="image/png" sizes="256x256" href="img/logo-icon.png"><link rel="stylesheet" href="assets/css/styles.css"><title>Finalizar pedido | Fuera de Lugar Sport</title></head><body data-page="checkout"><a class="skip-link" href="#main">Saltar al contenido</a><div id="site-header"></div><main id="main" class="container page checkout-page"><header class="page-header"><span class="eyebrow">Último paso</span><h1>Finaliza tu pedido</h1><p>Revisaremos disponibilidad y coordinaremos el pago contigo por WhatsApp.</p></header><form id="checkout-form" class="checkout-layout"><section class="form-card"><h2>Tus datos</h2><div class="form-grid"><label>Nombre completo<input name="fullName" required autocomplete="name" maxlength="100"></label><label>Teléfono<input name="phone" required autocomplete="tel" inputmode="tel" maxlength="25"></label><label>Ciudad<input name="city" required autocomplete="address-level2" maxlength="80"></label><label>Método de entrega<select name="delivery" id="delivery-method" required><option value="">Selecciona una opción</option><option>Recoger en tienda</option><option>Domicilio</option><option>Envío nacional</option></select></label><label id="address-field" class="form-grid__full" hidden>Dirección<input name="address" autocomplete="street-address" maxlength="180"></label><fieldset class="form-grid__full"><legend>Método de pago</legend><div id="payment-methods" class="radio-list"></div></fieldset><label class="form-grid__full">Observaciones<textarea name="notes" rows="3" maxlength="500" placeholder="Indicaciones opcionales"></textarea></label></div></section><aside><div id="checkout-summary" class="summary-card"></div><button class="btn btn--primary btn--block" type="submit">Enviar pedido por WhatsApp</button><p class="secure-note">No pagarás dentro de esta página. La tienda confirmará tu pedido personalmente.</p></aside></form></main><div id="site-footer"></div><div id="mobile-nav"></div><div id="toast-root" aria-live="polite"></div><script type="module" src="js/app.js"></script></body></html>
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff">
+  <link rel="icon" type="image/png" sizes="256x256" href="img/logo-icon.png">
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <title>Finalizar pedido | Fuera de Lugar Sport</title>
+</head>
+<body data-page="checkout">
+  <a class="skip-link" href="#main">Saltar al contenido</a>
+  <div id="site-header"></div>
+
+  <main id="main" class="container page checkout-page">
+    <header class="checkout-header">
+      <nav class="checkout-progress" aria-label="Progreso del pedido">
+        <a href="carrito.html"><span aria-hidden="true">✓</span> Carrito</a><i aria-hidden="true"></i>
+        <strong aria-current="step"><span>2</span> Datos</strong><i aria-hidden="true"></i>
+        <span><span>3</span> WhatsApp</span>
+      </nav>
+      <div class="checkout-title-row">
+        <div><span class="eyebrow">Último paso</span><h1>Finaliza tu pedido</h1><p>Revisa tus datos y elige cómo quieres recibirlo.</p></div>
+        <a class="checkout-back" href="carrito.html">← Volver al carrito</a>
+      </div>
+    </header>
+
+    <div id="checkout-status" class="checkout-status" role="status" aria-live="polite" hidden></div>
+
+    <form id="checkout-form" class="checkout-layout" novalidate>
+      <div class="checkout-main">
+        <details id="checkout-summary-mobile" class="checkout-order checkout-order--mobile">
+          <summary>
+            <span><small>Tu pedido</small><strong id="checkout-mobile-count">Cargando…</strong></span>
+            <span><strong id="checkout-mobile-total">—</strong><small class="checkout-summary-toggle">Ver detalle</small></span>
+          </summary>
+          <div id="checkout-mobile-products" class="checkout-order__products"></div>
+          <a class="checkout-edit-cart" href="carrito.html">Editar carrito</a>
+        </details>
+
+        <div class="checkout-form-surface">
+          <section class="checkout-section" aria-labelledby="contact-title">
+            <div class="checkout-section__head"><span aria-hidden="true">1</span><div><h2 id="contact-title">Datos de contacto</h2><p>Para comunicarnos contigo sobre el pedido.</p></div></div>
+            <div class="checkout-fields checkout-fields--two">
+              <label class="checkout-field" for="checkout-name"><span>Nombre completo</span><input id="checkout-name" name="fullName" required autocomplete="name" maxlength="100" placeholder="Ej. Miguel García" aria-describedby="fullName-error"><small id="fullName-error" class="field-error" aria-live="polite"></small></label>
+              <label class="checkout-field" for="checkout-phone"><span>Teléfono</span><input id="checkout-phone" name="phone" required autocomplete="tel" inputmode="tel" maxlength="25" placeholder="Ej. 300 123 4567" aria-describedby="phone-error"><small id="phone-error" class="field-error" aria-live="polite"></small></label>
+            </div>
+          </section>
+
+          <fieldset class="checkout-section checkout-choice-group" aria-describedby="delivery-help delivery-error">
+            <legend class="sr-only">Método de entrega</legend>
+            <div class="checkout-section__head"><span aria-hidden="true">2</span><div><h2>Método de entrega</h2><p id="delivery-help">Selecciona la opción que te resulte más cómoda.</p></div></div>
+            <div class="checkout-choice-list checkout-choice-list--delivery">
+              <label class="checkout-choice"><input type="radio" name="delivery" value="Recoger en tienda" required><span class="checkout-choice__mark" aria-hidden="true"></span><span><strong>Recoger en tienda</strong><small id="pickup-choice-copy">Consulta el punto de recogida</small></span><span class="checkout-choice__check" aria-hidden="true">✓</span></label>
+              <label class="checkout-choice"><input type="radio" name="delivery" value="Domicilio" required><span class="checkout-choice__mark" aria-hidden="true"></span><span><strong>Domicilio</strong><small>Entrega en tu dirección</small></span><span class="checkout-choice__check" aria-hidden="true">✓</span></label>
+              <label class="checkout-choice"><input type="radio" name="delivery" value="Envío nacional" required><span class="checkout-choice__mark" aria-hidden="true"></span><span><strong>Envío nacional</strong><small>Coordinaremos la transportadora contigo</small></span><span class="checkout-choice__check" aria-hidden="true">✓</span></label>
+            </div>
+            <small id="delivery-error" class="field-error field-error--group" aria-live="polite"></small>
+            <div id="delivery-details" class="checkout-delivery-details">
+              <div id="pickup-information" class="checkout-pickup" hidden><span class="checkout-pickup__icon" aria-hidden="true">⌖</span><div><small>Recoges tu pedido en:</small><strong id="pickup-address"></strong><span id="pickup-city"></span><a id="pickup-map" href="#" target="_blank" rel="noopener" hidden>Ver ubicación ↗</a></div></div>
+              <div class="checkout-fields checkout-fields--address">
+                <label class="checkout-field" for="checkout-city"><span>Ciudad</span><input id="checkout-city" name="city" required autocomplete="address-level2" maxlength="80" placeholder="Ej. Valledupar" aria-describedby="city-error"><small id="city-error" class="field-error" aria-live="polite"></small></label>
+                <label id="address-field" class="checkout-field" for="checkout-address" hidden><span>Dirección de entrega</span><input id="checkout-address" name="address" autocomplete="address-line1" maxlength="180" placeholder="Calle 10 # 20-30, Apto 301" aria-describedby="address-error"><small id="address-error" class="field-error" aria-live="polite"></small></label>
+              </div>
+              <p id="delivery-note" class="checkout-inline-note" hidden></p>
+            </div>
+          </fieldset>
+
+          <fieldset class="checkout-section checkout-choice-group" aria-describedby="payment-help payment-error">
+            <legend class="sr-only">Método de pago</legend>
+            <div class="checkout-section__head"><span aria-hidden="true">3</span><div><h2>Método de pago</h2><p id="payment-help">Elige cómo prefieres pagar. Confirmaremos los detalles por WhatsApp.</p></div></div>
+            <div id="payment-methods" class="checkout-payment-list" aria-live="polite"><span class="checkout-payment-skeleton"></span><span class="checkout-payment-skeleton"></span></div>
+            <small id="payment-error" class="field-error field-error--group" aria-live="polite"></small>
+          </fieldset>
+
+          <section class="checkout-section" aria-labelledby="notes-title">
+            <div class="checkout-section__head"><span aria-hidden="true">4</span><div><h2 id="notes-title">Observaciones <small>Opcional</small></h2><p>Cuéntanos cualquier indicación útil para tu pedido.</p></div></div>
+            <label class="checkout-field" for="checkout-notes"><span class="sr-only">Observaciones</span><textarea id="checkout-notes" name="notes" rows="3" maxlength="500" placeholder="Ej. Entregar después de las 4 p.m."></textarea></label>
+          </section>
+
+          <section class="checkout-mobile-confirmation" aria-labelledby="mobile-confirm-title">
+            <div class="checkout-total-row"><span id="mobile-confirm-title">Total de productos</span><strong id="checkout-mobile-confirm-total">—</strong></div>
+            <p id="checkout-mobile-shipping">La entrega se confirma por WhatsApp.</p>
+            <button id="checkout-primary-action" class="btn btn--primary checkout-submit" type="submit"><img src="assets/images/whatsapp-official.svg" alt="" aria-hidden="true">Enviar pedido por WhatsApp</button>
+            <div class="checkout-trust"><span>✓ Sin pagos dentro de la web</span><span>✓ Confirmación personalizada</span></div>
+          </section>
+        </div>
+      </div>
+
+      <aside class="checkout-sidebar" aria-label="Resumen y confirmación">
+        <div class="checkout-sidebar__card">
+          <div class="checkout-sidebar__head"><div><span>Tu pedido</span><strong id="checkout-desktop-count">Cargando…</strong></div><a href="carrito.html">Editar carrito</a></div>
+          <div id="checkout-desktop-products" class="checkout-order__products"></div>
+          <div class="checkout-sidebar__totals"><div><span id="checkout-products-label">Productos</span><strong id="checkout-products-total">—</strong></div><div class="checkout-sidebar__total"><span>Total</span><strong id="checkout-desktop-total">—</strong></div><p id="checkout-desktop-shipping">La entrega se confirma por WhatsApp.</p></div>
+          <button class="btn btn--primary checkout-submit" type="submit"><img src="assets/images/whatsapp-official.svg" alt="" aria-hidden="true">Enviar pedido por WhatsApp</button>
+          <div class="checkout-trust"><span>✓ Sin pagos dentro de la web</span><span>✓ Confirmación por WhatsApp</span></div>
+        </div>
+      </aside>
+    </form>
+  </main>
+
+  <div id="checkout-sticky" class="checkout-sticky" hidden><span>Total<strong id="checkout-sticky-total">—</strong></span><button class="checkout-sticky__button" type="submit" form="checkout-form">Enviar por WhatsApp</button></div>
+  <div id="site-footer"></div>
+  <div id="mobile-nav"></div>
+  <div id="toast-root" aria-live="polite"></div>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

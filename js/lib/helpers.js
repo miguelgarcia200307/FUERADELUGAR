@@ -11,6 +11,15 @@ export function normalizeText(value = '') {
   return String(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/\s+/g, ' ');
 }
 
+export function paymentInitials(value = '') {
+  const clean = normalizeText(value).replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!clean) return '•';
+  const aliases = { bancolombia: 'BC', daviplata: 'DP' };
+  if (aliases[clean]) return aliases[clean];
+  const words = clean.split(' ').filter(word => !['de', 'del', 'la', 'el', 'y'].includes(word));
+  return (words.length > 1 ? words.slice(0, 2).map(word => word[0]).join('') : clean.slice(0, 2)).toUpperCase();
+}
+
 export function slugify(value = '') {
   return normalizeText(value).replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }

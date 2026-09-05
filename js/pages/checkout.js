@@ -1,7 +1,7 @@
 import { getPaymentMethods, validateCart } from '../lib/api.js';
 import { loadSettings } from '../components/layout.js';
 import { toast } from '../components/toast.js';
-import { $, debounce, emptyState, escapeHtml, formatMoney } from '../lib/helpers.js';
+import { $, debounce, emptyState, escapeHtml, formatMoney, localAsset, paymentInitials } from '../lib/helpers.js';
 import { clearCart, getCart, setCart } from '../lib/store.js';
 
 const DRAFT_KEY = 'fueradelugar_checkout_v1';
@@ -120,17 +120,15 @@ function renderPaymentMethods(methods, selected = '') {
   root.removeAttribute('tabindex');
   root.innerHTML = methods.map(method => `<label class="checkout-choice checkout-choice--payment">
     <input type="radio" name="payment" value="${escapeHtml(method.name)}" required ${method.name === selected ? 'checked' : ''}>
-    <span class="checkout-payment-icon" aria-hidden="true">${escapeHtml(paymentIcon(method.name))}</span>
+    ${paymentMethodMark(method)}
     <span><strong>${escapeHtml(method.name)}</strong><small>${escapeHtml(method.instructions || 'La tienda confirmará los detalles por WhatsApp.')}</small></span>
     <span class="checkout-choice__check" aria-hidden="true">✓</span>
   </label>`).join('');
 }
 
-function paymentIcon(name = '') {
-  const normalized = name.toLowerCase();
-  if (normalized.includes('efectivo') || normalized.includes('contra')) return '$';
-  if (normalized.includes('banco') || normalized.includes('transfer')) return '↔';
-  return name.trim().charAt(0).toUpperCase() || '•';
+function paymentMethodMark(method) {
+  if (method.logo_url) return `<span class="checkout-payment-icon checkout-payment-icon--logo" aria-hidden="true"><img src="${escapeHtml(localAsset(method.logo_url))}" alt=""></span>`;
+  return `<span class="checkout-payment-icon" aria-hidden="true">${escapeHtml(paymentInitials(method.name))}</span>`;
 }
 
 function bindDraftPersistence(form) {

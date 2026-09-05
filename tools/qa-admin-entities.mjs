@@ -2,7 +2,7 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
-const screenshotPaths={mobile:join(tmpdir(),'fdl-admin-entities-mobile.png'),teamMenu:join(tmpdir(),'fdl-admin-team-menu-mobile.png'),desktop:join(tmpdir(),'fdl-admin-entities-desktop.png')};
+const screenshotPaths={mobile:join(tmpdir(),'fdl-admin-entities-mobile.png'),teamMenu:join(tmpdir(),'fdl-admin-team-menu-mobile.png'),paymentAdmin:join(tmpdir(),'fdl-admin-payment-actions-mobile.png'),desktop:join(tmpdir(),'fdl-admin-entities-desktop.png')};
 const tabs=await fetch('http://localhost:9223/json/list').then(response=>response.json());
 const page=tabs.find(tab=>tab.type==='page');
 if(!page)throw new Error('No se encontró una pestaña para QA.');
@@ -58,7 +58,7 @@ const bootstrap=`(() => {
     else if(url.includes('/rest/v1/teams'))body=teams;
     else if(url.includes('/rest/v1/brands'))body=brands;
     else if(url.includes('/rest/v1/site_settings'))body={id:1,business_name:'Fuera de Lugar Sport',whatsapp:'573001112233',checkout_behavior:'keep'};
-    else if(url.includes('/rest/v1/payment_methods'))body=[];
+    else if(url.includes('/rest/v1/payment_methods'))body=[{id:'pay-bc',name:'Bancolombia',instructions:'Confirmación por WhatsApp',logo_url:null,active:true,sort_order:1},{id:'pay-dp',name:'Daviplata',instructions:'Transferencia',logo_url:'assets/images/teams/colombia.svg',active:true,sort_order:2}];
     return new Response(JSON.stringify(body),{status:200,headers:{'content-type':'application/json','content-range':'0-199/200'}});
   };
 })()`;
@@ -92,6 +92,11 @@ const blockedTeam=await evaluate(`(async()=>{const row=document.querySelector('[
 await evaluate(`document.querySelector('[data-section="brands"]').click()`);await delay(150);const adidasSearch=await search('adid');
 const blockedBrand=await evaluate(`(async()=>{const row=document.querySelector('[data-entity-id="b-adidas"]');row.querySelector('.action-menu').open=true;row.querySelector('[data-delete-entity]').click();await new Promise(resolve=>setTimeout(resolve,100));const result={title:document.querySelector('.modal h2')?.textContent,text:document.querySelector('.modal__content')?.innerText};document.querySelector('[data-close-dependency]')?.click();return result;})()`);
 
+await evaluate(`document.querySelector('[data-section="settings"]').click()`);await delay(180);
+await evaluate(`window.scrollTo({top:document.documentElement.scrollHeight,behavior:'instant'})`);await delay(500);
+await writeFile(screenshotPaths.paymentAdmin,Buffer.from((await command('Page.captureScreenshot',{format:'png',captureBeyondViewport:false})).data,'base64'));
+const paymentAdmin=await evaluate(`(async()=>{const rows=[...document.querySelectorAll('[data-payment]')];const bancolombia=rows.find(row=>row.querySelector('.data-row__main strong')?.textContent==='Bancolombia');const daviplata=rows.find(row=>row.querySelector('.data-row__main strong')?.textContent==='Daviplata');const edit=bancolombia?.querySelector('[data-edit]');const remove=bancolombia?.querySelector('[data-delete]');const editRect=edit?.getBoundingClientRect();const deleteRect=remove?.getBoundingClientRect();const result={rows:rows.length,bancolombiaInitials:bancolombia?.querySelector('.payment-method-thumb')?.textContent.trim(),daviplataHasLogo:Boolean(daviplata?.querySelector('.payment-method-thumb img')),editVisible:Boolean(editRect?.width&&editRect?.height),deleteVisible:Boolean(deleteRect?.width&&deleteRect?.height),actionsInsideViewport:Boolean(editRect&&deleteRect&&editRect.left>=0&&deleteRect.right<=innerWidth),overflow:document.documentElement.scrollWidth>innerWidth};edit?.click();await new Promise(resolve=>setTimeout(resolve,50));result.editTitle=document.querySelector('.modal h2')?.textContent;result.editName=document.querySelector('.modal .admin-form')?.elements.name?.value;document.querySelector('.modal__close')?.click();await new Promise(resolve=>setTimeout(resolve,50));remove?.click();await new Promise(resolve=>setTimeout(resolve,50));result.deleteTitle=document.querySelector('.modal h2')?.textContent;result.deleteConfirm=document.querySelector('.modal [data-confirm]')?.textContent;result.deleteMessage=document.querySelector('.modal__content p')?.textContent;document.querySelector('.modal [data-cancel]')?.click();await new Promise(resolve=>setTimeout(resolve,50));document.querySelector('#new-payment').click();await new Promise(resolve=>setTimeout(resolve,50));const form=document.querySelector('.modal .admin-form');result.fileField=Boolean(form?.elements.logo);result.optionalCopy=form?.querySelector('.payment-logo-field small')?.textContent;document.querySelector('.modal__close')?.click();return result;})()`);
+
 const viewports=[];
 for(const [width,height] of [[320,568],[360,800],[375,812],[390,844],[430,932],[768,1024],[1024,768],[1366,768],[1440,900],[1920,1080]]){
   await command('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:width<800});
@@ -99,4 +104,4 @@ for(const [width,height] of [[320,568],[360,800],[375,812],[390,844],[430,932],[
 }
 await command('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false});await evaluate(`document.querySelector('[data-section="categories"]').click()`);await delay(80);await writeFile(screenshotPaths.desktop,Buffer.from((await command('Page.captureScreenshot',{format:'png',captureBeyondViewport:false})).data,'base64'));
 
-console.log(JSON.stringify({initial,searches:{futbolSearch,clubesSearch,realSearch,adidasSearch},categoryFilter,categorySort,emptyResult,blockedCategory,cancellableCategory,teamFilter,teamMenuLayout,blockedTeam,blockedBrand,viewports,runtimeErrors,screenshotPaths},null,2));socket.close();
+console.log(JSON.stringify({initial,searches:{futbolSearch,clubesSearch,realSearch,adidasSearch},categoryFilter,categorySort,emptyResult,blockedCategory,cancellableCategory,teamFilter,teamMenuLayout,blockedTeam,blockedBrand,paymentAdmin,viewports,runtimeErrors,screenshotPaths},null,2));socket.close();

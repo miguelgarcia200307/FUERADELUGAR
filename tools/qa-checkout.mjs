@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 
 const screenshots = {
   mobile: join(tmpdir(), 'fdl-checkout-mobile.png'),
+  payment: join(tmpdir(), 'fdl-checkout-payment-methods.png'),
   desktop: join(tmpdir(), 'fdl-checkout-desktop.png')
 };
 const tabs = await fetch('http://localhost:9223/json/list').then(response => response.json());
@@ -73,7 +74,7 @@ const bootstrap = `(() => {
     let body=[];
     if(url.includes('/rest/v1/site_settings'))body={id:1,business_name:'Fuera de Lugar Sport',whatsapp:'573001234567',address:'Calle 17 No. 8 - 46, Centro',city:'Valledupar - Cesar',maps_url:'https://maps.google.com/?q=Valledupar',checkout_behavior:'keep'};
     else if(url.includes('/rest/v1/payment_methods'))body=localStorage.getItem('__qa_no_payments')==='1'?[]:[
-      {id:'p1',name:'Daviplata',instructions:'La tienda enviará los datos para transferir.',active:true,sort_order:1},
+      {id:'p1',name:'Daviplata',instructions:'La tienda enviará los datos para transferir.',logo_url:'assets/images/teams/colombia.svg',active:true,sort_order:1},
       {id:'p2',name:'Bancolombia',instructions:'Confirmaremos la cuenta por WhatsApp.',active:true,sort_order:2},
       {id:'p3',name:'Efectivo',instructions:'Disponible según el método de entrega.',active:true,sort_order:3}
     ];
@@ -122,8 +123,12 @@ const deliveryStates = await evaluate(`(() => {
 const paymentStates = await evaluate(`(() => {
   const choose=name=>[...document.querySelectorAll('[name="payment"]')].find(item=>item.value===name).click();
   choose('Daviplata');const daviplata=document.querySelector('[name="payment"]:checked').value;
-  choose('Efectivo');return{daviplata,after:document.querySelector('[name="payment"]:checked').value,checked:document.querySelectorAll('[name="payment"]:checked').length};
+  const logo=document.querySelector('[name="payment"][value="Daviplata"]').closest('label').querySelector('.checkout-payment-icon img')?.getAttribute('src');
+  const bancolombia=document.querySelector('[name="payment"][value="Bancolombia"]').closest('label').querySelector('.checkout-payment-icon').textContent.trim();
+  choose('Efectivo');const efectivo=document.querySelector('[name="payment"][value="Efectivo"]').closest('label').querySelector('.checkout-payment-icon').textContent.trim();return{daviplata,logo,bancolombia,efectivo,after:document.querySelector('[name="payment"]:checked').value,checked:document.querySelectorAll('[name="payment"]:checked').length};
 })()`);
+await evaluate(`(()=>{document.documentElement.style.scrollBehavior='auto';const target=document.querySelector('#payment-methods');scrollTo(0,target.getBoundingClientRect().top+scrollY-150);})()`);await delay(120);
+await writeFile(screenshots.payment, Buffer.from((await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false })).data, 'base64'));
 
 await evaluate(`(() => {
   const set=(name,value)=>{const input=document.querySelector('[name="'+name+'"]');input.value=value;input.dispatchEvent(new Event('input',{bubbles:true}));};

@@ -217,6 +217,19 @@ export async function removeCatalogEntityAsset(entityType, assetUrl = '') {
   return true;
 }
 
+export async function removePaymentMethodAsset(assetUrl = '') {
+  if (!/^https?:\/\//i.test(assetUrl)) return false;
+  const marker = '/storage/v1/object/public/site-assets/';
+  let pathname;
+  try { pathname = new URL(assetUrl).pathname; } catch { return false; }
+  const markerIndex = pathname.indexOf(marker);
+  if (markerIndex < 0) return false;
+  const path = decodeURIComponent(pathname.slice(markerIndex + marker.length));
+  if (!path.startsWith('payment-methods/') || path.includes('..')) return false;
+  unwrap(await supabase.storage.from('site-assets').remove([path]));
+  return true;
+}
+
 export async function saveSettings(values) {
   return unwrap(await supabase.from('site_settings').update(values).eq('id', 1).select().single());
 }

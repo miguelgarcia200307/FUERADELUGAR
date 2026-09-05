@@ -158,9 +158,21 @@ button.stat-card:hover { border-color: #a9c9b4; box-shadow: var(--admin-shadow);
 .entity-thumb { display: grid; place-items: center; border: 1px solid var(--admin-border); background: #f5f8f6; }
 .entity-thumb img { object-fit: contain; }
 .entity-thumb span { color: var(--admin-primary-dark); font-size: .78rem; font-weight: 850; letter-spacing: .04em; }
+.payment-method-thumb { border-radius: 12px; background: #f3f8f5; }
+.payment-method-thumb img { padding: 5px; object-fit: contain; }
+.payment-logo-field > span { margin-left: .25rem; color: var(--admin-muted); font-size: .72rem; font-weight: 500; }
+.payment-logo-field > small { display: block; margin-top: .35rem; color: var(--admin-muted); font-size: .72rem; font-weight: 500; }
+.payment-logo-preview { min-height: 76px; display: flex; gap: .8rem; align-items: center; padding: .65rem; border: 1px solid var(--admin-border); border-radius: 10px; background: #f8faf8; }
+.payment-logo-preview > img { width: 58px; height: 58px; flex: none; padding: 5px; border: 1px solid var(--admin-border); border-radius: 10px; background: white; object-fit: contain; }
+.payment-logo-preview > div { min-width: 0; }
+.payment-logo-preview strong,.payment-logo-preview small { display: block; }
+.payment-logo-preview strong { font-size: .82rem; }
+.payment-logo-preview small { color: var(--admin-muted); font-size: .72rem; }
+.payment-logo-preview .check-field { margin-top: .35rem; }
 .data-row > .status-pill { grid-column: 2; justify-self: start; }
 .data-row__actions { grid-column: 2/-1; display: flex; flex-wrap: wrap; gap: .4rem; }
 .data-row__actions .small-btn[data-edit] { color: white; border-color: var(--admin-primary); background: var(--admin-primary); }
+.payment-method-row .data-row__actions { justify-content: flex-end; }
 .small-btn { min-height: 38px; padding: .4rem .65rem; border: 1px solid var(--admin-border); border-radius: 8px; background: white; cursor: pointer; font-size: .8rem; font-weight: 700; }
 .small-btn:hover { border-color: #9bb1a0; background: #f8faf8; }
 .small-btn--danger { color: var(--admin-danger); }
@@ -305,6 +317,7 @@ button.stat-card:hover { border-color: #a9c9b4; box-shadow: var(--admin-shadow);
 @media (max-width: 480px) {
   .admin-heading > .btn { width: 100%; }
   .data-row__actions > .small-btn:not([data-edit]) { display: none; }
+  .payment-method-row .data-row__actions > .small-btn { display: inline-flex; align-items: center; justify-content: center; }
   .check-list { grid-template-columns: 1fr; }
   .form-actions .btn { flex: 1; }
   .admin-page .modal-backdrop { padding: 0; }

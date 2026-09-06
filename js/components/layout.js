@@ -35,9 +35,19 @@ const icons = {
   check: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m8 12 2.5 2.5L16 9"></path></svg>'
 };
 
-function brand(settings) {
-  const logo = settings.logo_url || 'img/logo-horizontal.png';
-  return `<img class="brand__logo" src="${localAsset(logo)}" alt="${escapeHtml(settings.business_name || 'Fuera de Lugar Sport')}" width="1254" height="1254">`;
+const filterIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M14 5v4M4 17h2M10 17h10M10 15v4M4 12h4M12 12h8M8 10v4"></path></svg>';
+
+function homeSearchToolbar(id, mobile = false) {
+  return `<div class="home-search-toolbar${mobile ? ' home-search-toolbar--mobile' : ' home-search-toolbar--desktop'}">
+    ${searchBox(id, mobile)}
+    <button class="home-filter-trigger" type="button" data-home-filter-trigger aria-label="Filtrar productos" title="Filtrar productos" aria-controls="home-filters" aria-expanded="false">
+      ${filterIcon}<span class="home-filter-trigger__label">Filtros</span><b data-home-filter-count hidden></b>
+    </button>
+  </div>`;
+}
+
+function brand(settings, { footer = false } = {}) {
+  return `<img class="brand__logo${footer ? ' brand__logo--footer' : ''}" src="${localAsset('img/logo.png')}" alt="${escapeHtml(settings.business_name || 'Fuera de Lugar Sport')}" width="1254" height="522">`;
 }
 
 function safeExternalUrl(value) {
@@ -92,7 +102,7 @@ export function renderFooter(settings) {
     <div class="footer-main container">
       <div class="footer-grid">
         <section class="footer-section footer-brand" aria-label="${escapeHtml(businessName)}">
-          <a class="brand footer-brand__link" href="index.html" aria-label="Ir al inicio">${brand(settings)}</a>
+          <a class="brand footer-brand__link" href="index.html" aria-label="Ir al inicio">${brand(settings, { footer: true })}</a>
           <p><span>${escapeHtml(locationCopy)}</span><span>Uniformes, calzado y accesorios.</span></p>
         </section>
         ${contactActions || directContact ? `<section class="footer-section footer-contact" aria-labelledby="footer-contact-title"><h2 id="footer-contact-title">Hablemos</h2>${contactActions ? `<div class="footer-actions">${contactActions}</div>` : ''}${directContact ? `<div class="footer-direct">${directContact}</div>` : ''}</section>` : ''}
@@ -131,18 +141,19 @@ function bindFooterObserver() {
 
 export async function renderLayout() {
   const settings = await loadSettings();
+  const isHome = document.body.dataset.page === 'home';
   const header = document.querySelector('#site-header');
   if (header) header.innerHTML = `<div class="announcement"><span>Compra por WhatsApp</span><i></i><span>Atención personalizada</span><i></i><span>Valledupar</span></div>
     <header class="site-header">
       <div class="container header-main">
         <a class="brand" href="index.html" aria-label="Ir al inicio">${brand(settings)}</a>
-        ${searchBox('desktop-search')}
+        ${isHome ? homeSearchToolbar('desktop-search') : searchBox('desktop-search')}
         <div class="header-actions">
           <a class="icon-link" href="favoritos.html" aria-label="Favoritos">${icons.heart}<span class="badge favorite-badge">0</span></a>
           <a class="icon-link" href="carrito.html" aria-label="Carrito">${icons.bag}<span class="badge cart-badge">0</span></a>
         </div>
       </div>
-      <div class="container mobile-search-wrap">${searchBox('mobile-search', true)}</div>
+      <div class="container mobile-search-wrap">${isHome ? homeSearchToolbar('mobile-search', true) : searchBox('mobile-search', true)}</div>
       <nav class="desktop-nav" aria-label="Navegación principal"><div class="container"><a href="catalogo.html">Todos los productos</a><a href="categorias.html">Categorías</a><a href="promociones.html">Promociones</a><a href="equipos.html">Equipos</a><a href="catalogo.html?sort=newest">Recién llegados</a></div></nav>
     </header>`;
 
@@ -187,6 +198,14 @@ function bindImageFallbacks() {
     const image = event.target;
     if (!(image instanceof HTMLImageElement) || image.dataset.fallbackApplied) return;
     image.dataset.fallbackApplied = 'true';
+    if (image.matches('[data-team-crest-image]')) {
+      const crest = image.closest('.team-crest');
+      if (crest) {
+        crest.textContent = image.dataset.teamInitials || '•';
+        crest.classList.add('team-crest--fallback');
+      }
+      return;
+    }
     image.src = localAsset('assets/images/product-white.svg');
     image.classList.add('image-fallback');
   }, true);

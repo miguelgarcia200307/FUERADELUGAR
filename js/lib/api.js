@@ -33,6 +33,18 @@ export async function getTeams({ all = false } = {}) {
   return unwrap(await query);
 }
 
+export async function getPublishedProductCountsByTeam() {
+  const rows = unwrap(await supabase
+    .from('products')
+    .select('team_id')
+    .eq('status', 'published')
+    .not('team_id', 'is', null));
+  return rows.reduce((counts, product) => {
+    counts[product.team_id] = (counts[product.team_id] || 0) + 1;
+    return counts;
+  }, {});
+}
+
 export async function getBrands({ all = false } = {}) {
   let query = supabase.from('brands').select('*').order('name');
   if (!all) query = query.eq('active', true);
@@ -47,11 +59,15 @@ export async function getPaymentMethods({ all = false } = {}) {
 
 export async function getFilterOptions() {
   const [colors, sizes] = await Promise.all([
-    unwrap(await supabase.from('product_colors').select('name').order('name')),
+    unwrap(await supabase.from('product_colors').select('name,hex_code,sort_order').order('name')),
     unwrap(await supabase.from('product_sizes').select('name').order('sort_order'))
   ]);
   return {
     colors: [...new Set(colors.map(item => item.name))],
+    colorDetails: [...colors.reduce((items, item) => {
+      if (!items.has(item.name)) items.set(item.name, { name: item.name, hex_code: item.hex_code || '' });
+      return items;
+    }, new Map()).values()],
     sizes: [...new Set(sizes.map(item => item.name))]
   };
 }
@@ -202,6 +218,7 @@ export async function deleteCatalogEntitySafely(entityType, entityId) {
 
 export async function removeCatalogEntityAsset(entityType, assetUrl = '') {
   const config = {
+    categories: { bucket: 'category-images', folder: 'categories/' },
     teams: { bucket: 'team-crests', folder: 'teams/' },
     brands: { bucket: 'brand-assets', folder: 'brands/' }
   }[entityType];

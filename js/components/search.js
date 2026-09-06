@@ -1,5 +1,5 @@
 import { clearRecentSearches, getRecentSearches, getSearchSuggestions, saveRecentSearch } from '../lib/search.js';
-import { debounce, escapeHtml, formatMoney, getCategoryUrl, getProductUrl, localAsset } from '../lib/helpers.js';
+import { categoryInitials, debounce, escapeHtml, formatMoney, getCategoryUrl, getProductUrl, localAsset } from '../lib/helpers.js';
 
 const searchIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="m16 16 4 4"></path></svg>';
 
@@ -12,7 +12,7 @@ function emptyPanel() {
 function entityRow(item, type) {
   const config = {
     team: { label: 'Equipo', url: `catalogo.html?team=${encodeURIComponent(item.slug)}`, image: item.crest_url, icon: '⚽' },
-    category: { label: 'Categoría', url: getCategoryUrl(item.slug), image: item.image_url, icon: '▦' },
+    category: { label: 'Categoría', url: getCategoryUrl(item.slug), image: item.image_url, icon: categoryInitials(item.name) },
     brand: { label: 'Marca', url: `marca.html?slug=${encodeURIComponent(item.slug)}`, image: item.logo_url, icon: '◇' }
   }[type];
   return `<a class="search-result search-result--entity" href="${config.url}">
@@ -103,14 +103,33 @@ export function bindSearch(root = document) {
       if (termButton) { input.value = termButton.dataset.searchTerm; clear.hidden = false; runSearch(); input.focus(); }
       if (event.target.closest('[data-clear-recent]')) { clearRecentSearches(); renderInitial(); }
       const link = event.target.closest('a');
-      if (link) saveRecentSearch(input.value);
+      if (link) {
+        saveRecentSearch(input.value);
+        if (document.body.dataset.page === 'home' && link.matches('.search-all')) {
+          event.preventDefault();
+          setOpen(false);
+          window.dispatchEvent(new CustomEvent('home:search', { detail: { query: input.value.trim() } }));
+        }
+      }
     });
-    clear.addEventListener('click', () => { input.value = ''; clear.hidden = true; requestId += 1; renderInitial(); input.focus(); });
+    clear.addEventListener('click', () => {
+      input.value = '';
+      clear.hidden = true;
+      requestId += 1;
+      renderInitial();
+      input.focus();
+      if (document.body.dataset.page === 'home') window.dispatchEvent(new CustomEvent('home:search', { detail: { query: '' } }));
+    });
     form.addEventListener('submit', event => {
       event.preventDefault();
       const term = input.value.trim();
       if (!term) return;
       saveRecentSearch(term);
+      if (document.body.dataset.page === 'home') {
+        setOpen(false);
+        window.dispatchEvent(new CustomEvent('home:search', { detail: { query: term } }));
+        return;
+      }
       location.href = `catalogo.html?q=${encodeURIComponent(term)}`;
     });
     document.addEventListener('pointerdown', event => { if (!form.contains(event.target)) setOpen(false); });

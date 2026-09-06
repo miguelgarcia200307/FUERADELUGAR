@@ -11,6 +11,13 @@ export function normalizeText(value = '') {
   return String(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/\s+/g, ' ');
 }
 
+export function categoryInitials(value = '') {
+  const clean = normalizeText(value).replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!clean) return '•';
+  const words = clean.split(' ').filter(word => !['de', 'del', 'la', 'el', 'las', 'los', 'y'].includes(word) && !/^\d+$/.test(word));
+  return (words.length > 1 ? words.slice(0, 2).map(word => word[0]).join('') : (words[0] || clean).slice(0, 2)).toUpperCase();
+}
+
 export function paymentInitials(value = '') {
   const clean = normalizeText(value).replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
   if (!clean) return '•';

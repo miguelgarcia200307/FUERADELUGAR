@@ -23,7 +23,7 @@
       <div class="promo-header__actions" aria-label="Acciones de promociones">
         <button id="open-promo-filters" class="promo-action promo-action--primary" type="button" aria-controls="promotion-filters" aria-expanded="false">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>
-          <span>Filtrar <b id="promo-filter-count"></b></span>
+          <span>Filtros <b id="promo-filter-count"></b></span>
         </button>
         <label class="promo-sort"><span>Ordenar</span><select id="promo-sort-select" aria-label="Ordenar promociones"><option value="commercial">Relevancia</option><option value="discount">Mayor descuento</option><option value="price-asc">Precio menor</option><option value="price-desc">Precio mayor</option><option value="newest">Más recientes</option><option value="name">A-Z</option></select></label>
         <button id="share-promos" class="promo-action" type="button">
@@ -32,7 +32,9 @@
         </button>
       </div>
     </header>
+    <div id="promo-active-filters" class="promo-active-filters" hidden></div>
     <div class="catalog-layout promotions-layout">
+      <button id="promo-filter-backdrop" class="filter-backdrop" type="button" aria-label="Cerrar filtros" tabindex="-1"></button>
       <aside id="promotion-filters" class="filters promo-filters" aria-label="Filtros de promociones"></aside>
       <section class="promotion-results" aria-labelledby="promo-results-title">
         <div class="catalog-summary promo-summary">

@@ -1,7 +1,7 @@
 import { getCategories, getProducts, getTeams } from '../lib/api.js';
 import { renderProducts } from '../components/product-card.js';
 import { toast } from '../components/toast.js';
-import { $, emptyState, escapeHtml, getCategoryUrl, getTeamUrl, localAsset, normalizeText, params, routeSlug, sharePage } from '../lib/helpers.js';
+import { $, categoryInitials, emptyState, escapeHtml, getCategoryUrl, getTeamUrl, localAsset, normalizeText, params, routeSlug, sharePage } from '../lib/helpers.js';
 
 const byName = (a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' });
 
@@ -9,7 +9,7 @@ function categoryVisual(category) {
   if (category.image_url) {
     return `<img src="${escapeHtml(localAsset(category.image_url))}" alt="" loading="lazy" decoding="async">`;
   }
-  return `<span class="category-card__fallback" aria-hidden="true"><i>${escapeHtml(category.name.slice(0, 1).toUpperCase())}</i><b></b></span>`;
+  return `<span class="category-card__fallback" aria-hidden="true"><i>${escapeHtml(categoryInitials(category.name))}</i><b></b></span>`;
 }
 
 function categoryCard(category, children) {

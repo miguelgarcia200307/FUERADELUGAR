@@ -28,8 +28,10 @@
 .auth-card { width: min(100%,430px); display: grid; gap: 1.4rem; padding: clamp(1.4rem,5vw,2.4rem); border: 1px solid var(--border); border-radius: var(--radius-lg); background: white; box-shadow: var(--shadow-lg); }
 .auth-card h1 { margin: 0; font-size: 2.8rem; }
 .auth-card p { color: var(--muted); }
+.auth-intro { text-align: center; }
 .brand--center { justify-self: center; }
 .auth-brand .brand__logo { width: clamp(112px,32vw,144px); height: clamp(112px,32vw,144px); max-width: none; max-height: none; border-radius: 50%; object-fit: cover; }
+.auth-brand .auth-brand__logo { width: clamp(220px,64vw,290px); height: auto; border-radius: 18px; object-fit: contain; box-shadow: 0 8px 20px rgba(10,20,13,.12); }
 
 .admin-page { min-width: 320px; color: var(--admin-text); background: var(--admin-background); }
 .admin-shell { min-height: 100vh; }
@@ -46,8 +48,8 @@
 .admin-sidebar .brand__mark { flex: none; background: white; color: var(--admin-text); }
 .admin-sidebar .brand strong { font-size: .95rem; }
 .admin-sidebar .brand small { color: #72d996; }
-.admin-brand { width: 92px; display: grid; justify-items: center; gap: .45rem; }
-.admin-brand .brand__logo { width: 76px; height: 76px; max-width: none; max-height: none; border-radius: 50%; object-fit: cover; }
+.admin-brand { width: 160px; display: grid; justify-items: center; gap: .45rem; }
+.admin-brand .brand__logo { width: 160px; height: auto; max-width: 100%; max-height: none; border-radius: 12px; object-fit: contain; }
 .admin-brand__tag { color: #83dba1; font-size: .65rem; font-weight: 800; letter-spacing: .13em; text-align: center; text-transform: uppercase; }
 .admin-sidebar__close { width: 42px; height: 42px; flex: none; border: 1px solid #354139; border-radius: 50%; color: white; background: #1d2821; font-size: 1.35rem; cursor: pointer; }
 #admin-nav { min-height: 0; display: grid; gap: .2rem; overflow-y: auto; scrollbar-width: thin; }
@@ -68,8 +70,8 @@
 
 .admin-mobile-header { position: sticky; z-index: 80; top: 0; min-height: var(--admin-header-height); display: flex; gap: .65rem; align-items: center; justify-content: space-between; padding: max(.45rem,env(safe-area-inset-top)) 1rem .45rem; border-bottom: 1px solid rgba(223,230,225,.95); background: rgba(255,255,255,.94); backdrop-filter: blur(12px); }
 .admin-mobile-header > button { width: 42px; height: 42px; flex: none; border: 1px solid var(--admin-border); border-radius: 10px; background: white; font-size: 1.18rem; cursor: pointer; }
-.admin-mobile-header__brand { min-width: 0; display: grid; flex: 1; line-height: 1.05; }
-.admin-mobile-header__brand img { width: 42px; height: 42px; max-width: none; border-radius: 50%; object-fit: cover; }
+.admin-mobile-header__brand { min-width: 0; display: grid; flex: 1; justify-items: center; line-height: 1.05; }
+.admin-mobile-header__brand img { width: clamp(88px,30vw,105px); height: auto; max-width: 100%; border-radius: 7px; object-fit: contain; }
 .admin-mobile-header__brand strong { overflow: hidden; font-family: "Barlow Condensed",sans-serif; font-size: 1.06rem; letter-spacing: .02em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
 .admin-mobile-header__brand small { color: var(--admin-muted); font-size: .75rem; }
 .admin-mobile-header > a { flex: none; padding: .45rem 0; color: var(--admin-primary-dark); font-size: .8rem; font-weight: 750; }

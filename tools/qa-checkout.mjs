@@ -114,9 +114,9 @@ const inlineValidation = await evaluate(`(() => ({active:document.activeElement.
 
 const deliveryStates = await evaluate(`(() => {
   const select=value=>{const input=[...document.querySelectorAll('[name="delivery"]')].find(item=>item.value===value);input.click();};
-  select('Recoger en tienda');const pickup={addressHidden:document.querySelector('#address-field').hidden,pickupVisible:!document.querySelector('#pickup-information').hidden,mapVisible:!document.querySelector('#pickup-map').hidden};
-  select('Domicilio');const local={addressVisible:!document.querySelector('#address-field').hidden,addressRequired:document.querySelector('#checkout-address').required,note:document.querySelector('#delivery-note').textContent};
-  select('Envío nacional');const national={addressVisible:!document.querySelector('#address-field').hidden,note:document.querySelector('#delivery-note').textContent};
+  select('Recoger en tienda');const pickup={cityHidden:document.querySelector('#city-field').hidden,cityRequired:document.querySelector('#checkout-city').required,addressHidden:document.querySelector('#address-field').hidden,pickupVisible:!document.querySelector('#pickup-information').hidden,mapVisible:!document.querySelector('#pickup-map').hidden};
+  select('Domicilio');const local={cityVisible:!document.querySelector('#city-field').hidden,cityRequired:document.querySelector('#checkout-city').required,addressVisible:!document.querySelector('#address-field').hidden,addressRequired:document.querySelector('#checkout-address').required,note:document.querySelector('#delivery-note').textContent};
+  select('Envío nacional');const national={cityVisible:!document.querySelector('#city-field').hidden,cityRequired:document.querySelector('#checkout-city').required,addressVisible:!document.querySelector('#address-field').hidden,note:document.querySelector('#delivery-note').textContent};
   return{pickup,local,national};
 })()`);
 

@@ -59,7 +59,7 @@
             <div id="delivery-details" class="checkout-delivery-details">
               <div id="pickup-information" class="checkout-pickup" hidden><span class="checkout-pickup__icon" aria-hidden="true">⌖</span><div><small>Recoges tu pedido en:</small><strong id="pickup-address"></strong><span id="pickup-city"></span><a id="pickup-map" href="#" target="_blank" rel="noopener" hidden>Ver ubicación ↗</a></div></div>
               <div class="checkout-fields checkout-fields--address">
-                <label class="checkout-field" for="checkout-city"><span>Ciudad</span><input id="checkout-city" name="city" required autocomplete="address-level2" maxlength="80" placeholder="Ej. Valledupar" aria-describedby="city-error"><small id="city-error" class="field-error" aria-live="polite"></small></label>
+                <label id="city-field" class="checkout-field" for="checkout-city" hidden><span>Ciudad</span><input id="checkout-city" name="city" autocomplete="address-level2" maxlength="80" placeholder="Ej. Valledupar" aria-describedby="city-error"><small id="city-error" class="field-error" aria-live="polite"></small></label>
                 <label id="address-field" class="checkout-field" for="checkout-address" hidden><span>Dirección de entrega</span><input id="checkout-address" name="address" autocomplete="address-line1" maxlength="180" placeholder="Calle 10 # 20-30, Apto 301" aria-describedby="address-error"><small id="address-error" class="field-error" aria-live="polite"></small></label>
               </div>
               <p id="delivery-note" class="checkout-inline-note" hidden></p>

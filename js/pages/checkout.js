@@ -155,13 +155,17 @@ function bindValidation(form, methods) {
 }
 
 function updateDelivery(delivery, settings = null) {
-  const needsAddress = DELIVERY_WITH_ADDRESS.has(delivery);
+  const needsShippingData = DELIVERY_WITH_ADDRESS.has(delivery);
+  const cityField = $('#city-field');
+  const cityInput = $('#checkout-city');
   const addressField = $('#address-field');
   const addressInput = $('#checkout-address');
   const pickup = $('#pickup-information');
   const note = $('#delivery-note');
-  addressField.hidden = !needsAddress;
-  addressInput.required = needsAddress;
+  cityField.hidden = !needsShippingData;
+  cityInput.required = needsShippingData;
+  addressField.hidden = !needsShippingData;
+  addressInput.required = needsShippingData;
   pickup.hidden = delivery !== 'Recoger en tienda';
   note.hidden = !delivery || delivery === 'Recoger en tienda';
   note.textContent = delivery === 'Envío nacional'
@@ -169,12 +173,16 @@ function updateDelivery(delivery, settings = null) {
     : delivery === 'Domicilio'
       ? 'La cobertura y el costo del domicilio se confirmarán por WhatsApp.'
       : '';
-  if (!needsAddress) clearFieldError('address');
+  if (!needsShippingData) {
+    clearFieldError('city');
+    clearFieldError('address');
+  }
   if (settings) configurePickup(settings);
 }
 
 function validateForm(form, methods, focusFirst = false) {
-  const fields = ['fullName', 'phone', 'delivery', 'city', ...(DELIVERY_WITH_ADDRESS.has(form.elements.delivery.value) ? ['address'] : []), 'payment'];
+  const needsShippingData = DELIVERY_WITH_ADDRESS.has(form.elements.delivery.value);
+  const fields = ['fullName', 'phone', 'delivery', ...(needsShippingData ? ['city', 'address'] : []), 'payment'];
   let firstInvalid = null;
   let valid = true;
   fields.forEach(name => {
@@ -201,7 +209,7 @@ function validateField(form, name, methods = null) {
     if (digits.length < 7 || digits.length > 15) message = 'Ingresa un número de teléfono válido.';
   }
   if (name === 'delivery' && !value) message = 'Selecciona un método de entrega.';
-  if (name === 'city' && value.length < 2) message = 'Ingresa tu ciudad.';
+  if (name === 'city' && DELIVERY_WITH_ADDRESS.has(form.elements.delivery.value) && value.length < 2) message = 'Ingresa tu ciudad.';
   if (name === 'address' && DELIVERY_WITH_ADDRESS.has(form.elements.delivery.value) && value.length < 5) message = 'Ingresa una dirección de entrega válida.';
   if (name === 'payment' && (!value || (methods && !methods.length))) message = methods && !methods.length ? 'No hay métodos de pago configurados. Contacta a la tienda.' : 'Selecciona un método de pago.';
   setFieldError(form, name, message);
@@ -235,19 +243,24 @@ function fieldTarget(form, name) {
 
 function normalizedFormData(form) {
   const data = Object.fromEntries(new FormData(form));
+  const needsShippingData = DELIVERY_WITH_ADDRESS.has(data.delivery);
   return {
     fullName: String(data.fullName || '').trim().replace(/\s+/g, ' '),
     phone: String(data.phone || '').trim(),
-    city: String(data.city || '').trim().replace(/\s+/g, ' '),
+    city: needsShippingData ? String(data.city || '').trim().replace(/\s+/g, ' ') : '',
     delivery: String(data.delivery || ''),
-    address: DELIVERY_WITH_ADDRESS.has(data.delivery) ? String(data.address || '').trim().replace(/\s+/g, ' ') : '',
+    address: needsShippingData ? String(data.address || '').trim().replace(/\s+/g, ' ') : '',
     payment: String(data.payment || ''),
     notes: String(data.notes || '').trim()
   };
 }
 
 function draftFormData(form) {
-  return { ...normalizedFormData(form), address: String(form.elements.address.value || '').trim() };
+  return {
+    ...normalizedFormData(form),
+    city: String(form.elements.city.value || '').trim(),
+    address: String(form.elements.address.value || '').trim()
+  };
 }
 
 function readDraft() {
@@ -361,7 +374,7 @@ function safeExternalUrl(value) {
 }
 
 function buildMessage(cart, customer, settings) {
-  const lines = [`⚽ *NUEVO PEDIDO — ${String(settings.business_name || 'Fuera de Lugar Sport').toUpperCase()}*`, '', '👤 *CLIENTE*', `Nombre: ${customer.fullName}`, `Teléfono: ${customer.phone}`, `Ciudad: ${customer.city}`, '', '🚚 *ENTREGA*', `Método: ${customer.delivery}`, customer.address ? `Dirección: ${customer.address}` : '', '', '💳 *PAGO*', `Método preferido: ${customer.payment}`, '', '──────────────'];
+  const lines = [`⚽ *NUEVO PEDIDO — ${String(settings.business_name || 'Fuera de Lugar Sport').toUpperCase()}*`, '', '👤 *CLIENTE*', `Nombre: ${customer.fullName}`, `Teléfono: ${customer.phone}`, customer.city ? `Ciudad: ${customer.city}` : '', '', '🚚 *ENTREGA*', `Método: ${customer.delivery}`, customer.address ? `Dirección: ${customer.address}` : '', '', '💳 *PAGO*', `Método preferido: ${customer.payment}`, '', '──────────────'];
   cart.forEach((item, index) => {
     const unit = Number(item.price) + Number(item.personalization_price || 0);
     lines.push('', `*PRODUCTO ${index + 1}*`, item.name, `Color: ${item.color}`, `Talla: ${item.size}`, `Cantidad: ${item.quantity}`, `Precio unitario: ${formatMoney(unit)}`);

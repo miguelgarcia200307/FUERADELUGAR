@@ -29,6 +29,46 @@ const TEXT_COLORS = [
   ['#c83434', 'Rojo']
 ];
 
+let fontMeasureContext;
+const fontScaleCache = new Map();
+
+function measureFontInk(text, fontFamily) {
+  const sample = String(text || '10').toUpperCase();
+  const cacheKey = `${fontFamily}|${sample}`;
+  if (fontScaleCache.has(cacheKey)) return fontScaleCache.get(cacheKey);
+  fontMeasureContext ||= document.createElement('canvas').getContext('2d');
+  if (!fontMeasureContext) return { width: 100, height: 100, centerOffset: 0 };
+  fontMeasureContext.font = `800 100px ${fontFamily}`;
+  const metrics = fontMeasureContext.measureText(sample);
+  const left = metrics.actualBoundingBoxLeft ?? 0;
+  const right = metrics.actualBoundingBoxRight ?? metrics.width;
+  const measurement = {
+    width: Math.max(1, left + right),
+    height: Math.max(1, (metrics.actualBoundingBoxAscent || 75) + (metrics.actualBoundingBoxDescent || 20)),
+    centerOffset: ((right - left) / 2) - (metrics.width / 2)
+  };
+  fontScaleCache.set(cacheKey, measurement);
+  return measurement;
+}
+
+function applyPreviewTypography(element, textElement, text, fontName) {
+  const family = FONT_MAP[fontName] || FONT_MAP.Deportiva;
+  textElement.style.fontFamily = family;
+  textElement.style.fontWeight = '800';
+
+  const reference = measureFontInk(text, FONT_MAP.Deportiva);
+  const current = measureFontInk(text, family);
+  const fontSize = Number.parseFloat(getComputedStyle(element).fontSize) || 16;
+  const heightScale = reference.height / current.height;
+  const maximumWidth = Math.max(1, element.clientWidth * .96);
+  const widthScale = maximumWidth / (current.width * fontSize / 100);
+  const scale = Math.max(.55, Math.min(1.2, heightScale, widthScale));
+  const centerCorrection = -current.centerOffset * fontSize / 100 * scale;
+
+  textElement.style.setProperty('--font-visual-scale', scale.toFixed(3));
+  textElement.style.setProperty('--font-center-correction', `${centerCorrection.toFixed(3)}px`);
+}
+
 function normalizePosition(value, fallback = 'center') {
   const normalized = String(value || '').toLowerCase();
   if (normalized.startsWith('izq') || normalized === 'left') return 'left';
@@ -127,6 +167,8 @@ export function createProductCustomizer({ product, initialState = null, onApply 
     const fallback = wrapper.querySelector('[data-template-fallback]');
     const nameOverlay = wrapper.querySelector('[data-preview-name]');
     const numberOverlay = wrapper.querySelector('[data-preview-number]');
+    const nameText = wrapper.querySelector('[data-preview-name-text]');
+    const numberText = wrapper.querySelector('[data-preview-number-text]');
     const logoOverlay = wrapper.querySelector('[data-preview-logo]');
     const fileInput = wrapper.querySelector('#custom-logo');
 
@@ -154,17 +196,16 @@ export function createProductCustomizer({ product, initialState = null, onApply 
         template.alt = `Plantilla ${isFront ? 'frontal' : 'posterior'} de ${product.name}`;
       }
 
-      nameOverlay.textContent = (draft.name || 'TU NOMBRE').toUpperCase();
+      nameText.textContent = (draft.name || 'TU NOMBRE').toUpperCase();
       nameOverlay.dataset.position = draft.namePosition;
       nameOverlay.dataset.length = draft.name.length > 12 ? 'long' : draft.name.length > 8 ? 'medium' : 'short';
       nameOverlay.hidden = isFront;
-      numberOverlay.textContent = draft.number || '10';
+      numberText.textContent = draft.number || '10';
       numberOverlay.dataset.position = draft.numberPosition;
       numberOverlay.hidden = isFront;
-      [nameOverlay, numberOverlay].forEach(element => {
-        element.style.color = draft.textColor;
-        element.style.fontFamily = FONT_MAP[draft.font];
-      });
+      [nameOverlay, numberOverlay].forEach(element => { element.style.color = draft.textColor; });
+      applyPreviewTypography(nameOverlay, nameText, nameText.textContent, draft.font);
+      applyPreviewTypography(numberOverlay, numberText, numberText.textContent, draft.font);
 
       const logoUrl = draft.logoPreviewUrl || draft.logoUrl;
       logoOverlay.hidden = !isFront || !logoUrl;
@@ -183,6 +224,12 @@ export function createProductCustomizer({ product, initialState = null, onApply 
       });
       renderLogoFile();
     }
+
+    document.fonts?.ready.then(() => {
+      if (!wrapper.isConnected) return;
+      fontScaleCache.clear();
+      renderCustomizationPreview();
+    });
 
     function syncField(target) {
       if (target.id === 'custom-name') draft.name = target.value.slice(0, 15);
@@ -286,8 +333,8 @@ function customizerMarkup(product, state) {
           <div class="customizer-artboard">
             <img class="customizer-template" data-template alt="">
             <div class="customizer-shirt-fallback" data-template-fallback aria-hidden="true"></div>
-            <strong class="customizer-name" data-preview-name data-position="${state.namePosition}"></strong>
-            <b class="customizer-number" data-preview-number data-position="${state.numberPosition}"></b>
+            <strong class="customizer-name" data-preview-name data-position="${state.namePosition}"><span data-preview-name-text></span></strong>
+            <b class="customizer-number" data-preview-number data-position="${state.numberPosition}"><span data-preview-number-text></span></b>
             <img class="customizer-logo" data-preview-logo data-position="${state.logoPosition}" alt="Logo personalizado">
           </div>
         </div>

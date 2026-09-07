@@ -16,7 +16,7 @@ function optionMarkup(section, option, state) {
   const value = String(option.value);
   const selected = isSelected(state, section.key, value);
   const image = option.image
-    ? `<span class="filter-option__media"><img src="${escapeHtml(localAsset(option.image))}" alt="" loading="lazy"></span>`
+    ? `<span class="filter-option__media${option.mediaType ? ` filter-option__media--${escapeHtml(option.mediaType)}` : ''}"><img src="${escapeHtml(localAsset(option.image))}" alt="" loading="lazy"></span>`
     : '';
   const meta = option.meta ? `<small>${escapeHtml(option.meta)}</small>` : '';
   const count = Number.isFinite(option.count) ? `<span class="filter-option__count">${option.count}</span>` : '';
@@ -70,7 +70,7 @@ export function buildProductFilterSections({ categories, teams, brands, options,
     },
     ...(context === 'team' ? [] : [{
       key: 'team', label: 'Equipo', type: 'list', multiple: true, searchThreshold: 0,
-      options: teams.map(team => ({ value: team.slug, label: team.name, image: team.crest_url })).sort(alphabetical)
+      options: teams.map(team => ({ value: team.slug, label: team.name, image: team.crest_url, mediaType: 'team' })).sort(alphabetical)
     }]),
     {
       key: 'brand', label: 'Marca', type: 'list', multiple: true, searchThreshold: 0,

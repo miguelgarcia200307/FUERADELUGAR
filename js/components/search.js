@@ -15,7 +15,7 @@ function entityRow(item, type) {
     category: { label: 'Categoría', url: getCategoryUrl(item.slug), image: item.image_url, icon: categoryInitials(item.name) },
     brand: { label: 'Marca', url: `marca.html?slug=${encodeURIComponent(item.slug)}`, image: item.logo_url, icon: '◇' }
   }[type];
-  return `<a class="search-result search-result--entity" href="${config.url}">
+  return `<a class="search-result search-result--entity search-result--${type}" href="${config.url}">
     <span class="search-result__thumb">${config.image ? `<img src="${localAsset(config.image)}" alt="">` : config.icon}</span>
     <span><small>${config.label}</small><strong>${escapeHtml(item.name)}</strong></span><span class="search-result__arrow">›</span>
   </a>`;

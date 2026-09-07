@@ -138,7 +138,7 @@ function renderTeams(category, teams, products) {
 function teamTile(team) {
   const initials = team.name.split(/\s+/).map(word => word[0]).join('').slice(0, 3).toUpperCase();
   const crest = team.crest_url
-    ? `<span class="team-crest"><img src="${escapeHtml(localAsset(team.crest_url))}" alt="Escudo ${escapeHtml(team.name)}" loading="lazy"></span>`
+    ? `<span class="team-crest"><img src="${escapeHtml(localAsset(team.crest_url))}" alt="Escudo ${escapeHtml(team.name)}" loading="lazy" decoding="async" data-team-crest-image data-team-initials="${escapeHtml(initials)}"></span>`
     : `<span class="team-crest team-crest--fallback">${escapeHtml(initials)}</span>`;
   return `<a class="team-card" href="${getTeamUrl(team.slug)}">${crest}<strong>${escapeHtml(team.name)}</strong><small>Ver productos</small></a>`;
 }

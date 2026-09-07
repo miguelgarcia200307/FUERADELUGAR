@@ -7,6 +7,7 @@ export function openModal({ title, content, onClose, className = '', description
   backdrop.className = 'modal-backdrop';
   if (className.includes('modal--customizer')) backdrop.classList.add('modal-backdrop--customizer');
   if (className.includes('modal--lightbox')) backdrop.classList.add('modal-backdrop--lightbox');
+  if (className.includes('modal--confirm')) backdrop.classList.add('modal-backdrop--confirm');
   const modalId = `modal-title-${crypto.randomUUID()}`;
   const descriptionId = `modal-description-${crypto.randomUUID()}`;
   backdrop.innerHTML = `<section class="modal ${className}" role="dialog" aria-modal="true" aria-labelledby="${modalId}" ${description ? `aria-describedby="${descriptionId}"` : ''}><header class="modal__head"><div><h2 id="${modalId}"></h2>${description ? `<p id="${descriptionId}" class="sr-only"></p>` : ''}</div><button class="modal__close" type="button" aria-label="Cerrar">×</button></header><div class="modal__content"></div></section>`;
@@ -48,14 +49,17 @@ export function openModal({ title, content, onClose, className = '', description
   return { element: backdrop, contentRoot, close };
 }
 
-export function confirmAction(message, title = 'Confirmar', { confirmLabel = 'Confirmar', cancelLabel = 'Cancelar', trigger = null } = {}) {
+export function confirmAction(message, title = 'Confirmar', { confirmLabel = 'Confirmar', cancelLabel = 'Cancelar', trigger = null, tone = 'danger' } = {}) {
   return new Promise(resolve => {
     const wrapper = document.createElement('div');
-    wrapper.innerHTML = `<p></p><div class="form-actions"><button class="btn btn--danger" data-confirm type="button">Confirmar</button><button class="btn btn--ghost" data-cancel type="button">Cancelar</button></div>`;
+    const isPrimary = tone === 'primary';
+    wrapper.className = 'confirm-dialog';
+    wrapper.dataset.tone = isPrimary ? 'primary' : 'danger';
+    wrapper.innerHTML = `<div class="confirm-dialog__message"><span class="confirm-dialog__icon" aria-hidden="true">${isPrimary ? '<svg viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.2c0 4.6 3.2 8.1 7.5 9.8 4.3-1.7 7.5-5.2 7.5-9.8V6L12 3Z"></path><path d="m9.2 12 1.8 1.8 3.9-4"></path></svg>' : '<svg viewBox="0 0 24 24"><path d="M12 3 2.8 19h18.4L12 3Z"></path><path d="M12 9v4"></path><path d="M12 16.5h.01"></path></svg>'}</span><p></p></div><div class="confirm-dialog__actions"><button class="btn ${isPrimary ? 'btn--primary' : 'btn--danger'}" data-confirm type="button">Confirmar</button><button class="btn btn--ghost" data-cancel type="button">Cancelar</button></div>`;
     wrapper.querySelector('p').textContent = message;
     wrapper.querySelector('[data-confirm]').textContent = confirmLabel;
     wrapper.querySelector('[data-cancel]').textContent = cancelLabel;
-    const modal = openModal({ title, content: wrapper, trigger, onClose: () => resolve(false) });
+    const modal = openModal({ title, content: wrapper, className: 'modal--confirm', trigger, onClose: () => resolve(false) });
     wrapper.querySelector('[data-confirm]').addEventListener('click', () => { resolve(true); modal.close(); });
     wrapper.querySelector('[data-cancel]').addEventListener('click', () => { resolve(false); modal.close(); });
   });

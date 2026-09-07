@@ -2,6 +2,7 @@ import { getSettings } from '../lib/api.js';
 import { cartCount, getFavorites } from '../lib/store.js';
 import { escapeHtml, localAsset } from '../lib/helpers.js';
 import { bindSearch, searchBox } from './search.js';
+import { createAnnouncementController, DEFAULT_ANNOUNCEMENT_TEXT, normalizeAnnouncementSettings } from '../lib/announcement.js';
 
 let settingsCache;
 export async function loadSettings() {
@@ -14,7 +15,7 @@ export async function loadSettings() {
   }
   catch (error) {
     console.error(error);
-    settingsCache = { business_name: 'Fuera de Lugar Sport', whatsapp: '573023031112', address: 'Calle 17 No. 8 - 46, Centro', city: 'Valledupar - Cesar', instagram: '@fueradelugar_sport', schedule: 'Lunes a sábado' };
+    settingsCache = { business_name: 'Fuera de Lugar Sport', whatsapp: '573023031112', address: 'Calle 17 No. 8 - 46, Centro', city: 'Valledupar - Cesar', instagram: '@fueradelugar_sport', schedule: 'Lunes a sábado', announcement_enabled: true, announcement_mode: 'static', announcement_static_text: DEFAULT_ANNOUNCEMENT_TEXT, announcement_interval_seconds: 5 };
   }
   return settingsCache;
 }
@@ -141,9 +142,10 @@ function bindFooterObserver() {
 
 export async function renderLayout() {
   const settings = await loadSettings();
+  const announcement = normalizeAnnouncementSettings(settings);
   const isHome = document.body.dataset.page === 'home';
   const header = document.querySelector('#site-header');
-  if (header) header.innerHTML = `<div class="announcement"><span>Compra por WhatsApp</span><i></i><span>Atención personalizada</span><i></i><span>Valledupar</span></div>
+  if (header) header.innerHTML = `${announcement.enabled ? '<aside class="announcement" data-announcement aria-label="Anuncios de la tienda"></aside>' : ''}
     <header class="site-header">
       <div class="container header-main">
         <a class="brand" href="index.html" aria-label="Ir al inicio">${brand(settings)}</a>
@@ -156,6 +158,8 @@ export async function renderLayout() {
       <div class="container mobile-search-wrap">${isHome ? homeSearchToolbar('mobile-search', true) : searchBox('mobile-search', true)}</div>
       <nav class="desktop-nav" aria-label="Navegación principal"><div class="container"><a href="catalogo.html">Todos los productos</a><a href="categorias.html">Categorías</a><a href="promociones.html">Promociones</a><a href="equipos.html">Equipos</a><a href="catalogo.html?sort=newest">Recién llegados</a></div></nav>
     </header>`;
+  const announcementController = createAnnouncementController(header?.querySelector('[data-announcement]'), settings);
+  window.addEventListener('pagehide', announcementController.stop, { once: true });
 
   const footer = document.querySelector('#site-footer');
   if (footer) {

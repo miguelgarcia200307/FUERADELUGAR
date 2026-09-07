@@ -68,10 +68,10 @@ export function buildProductFilterSections({ categories, teams, brands, options,
         meta: category.parent_id ? categoryById.get(category.parent_id)?.name || '' : ''
       })).sort(alphabetical)
     },
-    {
+    ...(context === 'team' ? [] : [{
       key: 'team', label: 'Equipo', type: 'list', multiple: true, searchThreshold: 0,
       options: teams.map(team => ({ value: team.slug, label: team.name, image: team.crest_url })).sort(alphabetical)
-    },
+    }]),
     {
       key: 'brand', label: 'Marca', type: 'list', multiple: true, searchThreshold: 0,
       options: brands.map(brand => ({ value: brand.slug, label: brand.name, image: brand.logo_url })).sort(alphabetical)
@@ -127,9 +127,16 @@ export function createFilterPanel({ root, trigger, triggers = [], chipsRoot, tit
     const count = activeCount(sections, draft);
     selectionLabel.textContent = count ? `${count} filtro${count === 1 ? '' : 's'} seleccionado${count === 1 ? '' : 's'}` : 'Sin filtros seleccionados';
     clearButton.disabled = !count;
-    previewCount = Number(getResultCount?.(draft) || 0);
-    applyButton.textContent = `Ver ${previewCount} ${previewCount === 1 ? resultNoun.singular : resultNoun.plural}`;
-    applyButton.disabled = previewCount === 0;
+    const resultCount = getResultCount?.(draft);
+    if (resultCount == null) {
+      previewCount = 0;
+      applyButton.textContent = 'Ver resultados';
+      applyButton.disabled = false;
+    } else {
+      previewCount = Number(resultCount || 0);
+      applyButton.textContent = `Ver ${previewCount} ${previewCount === 1 ? resultNoun.singular : resultNoun.plural}`;
+      applyButton.disabled = previewCount === 0;
+    }
     sections.forEach(section => {
       const sectionRoot = root.querySelector(`[data-filter-section="${CSS.escape(section.key)}"]`);
       const badge = sectionRoot?.querySelector('.filter-section__status b');

@@ -1,4 +1,4 @@
-import { getBrands, getCategories, getEntityBySlug, getFilterOptions, getProducts, getProductsByIds, getPublishedProductCountsByTeam, getTeams, searchProducts } from '../lib/api.js';
+import { getBrands, getCategories, getDiscountSortedProductIds, getEntityBySlug, getFilterOptions, getProducts, getProductsByIds, getPublishedProductCountsByTeam, getTeams, searchProducts } from '../lib/api.js';
 import { loadSettings } from '../components/layout.js';
 import { renderProducts, renderProductSkeletons } from '../components/product-card.js';
 import { renderProductSection } from '../components/product-section.js';
@@ -20,7 +20,7 @@ export async function initHome() {
   categoriesRoot.innerHTML = parents.map(categoryQuickItem).join('');
 
   const promoted = promos.products
-    .filter(product => product.promo_price)
+    .filter(product => product.promo_price != null)
     .sort((a, b) => Number(isAvailable(b)) - Number(isAvailable(a)) || discountPercent(b) - discountPercent(a))
     .slice(0, 8);
   const promoSection = $('#home-promotions');
@@ -438,9 +438,240 @@ function syncCatalogUrl(state) {
   history.replaceState(null, '', `${location.pathname}${next.size ? `?${next}` : ''}`);
 }
 
+function teamListingState(query = params()) {
+  const validSorts = ['relevance', 'newest', 'price-asc', 'price-desc', 'discount', 'name'];
+  const sort = query.get('sort') || 'relevance';
+  return {
+    page: 0,
+    sort: validSorts.includes(sort) ? sort : 'relevance',
+    category: readFilterList(query, 'category'),
+    brand: readFilterList(query, 'brand'),
+    color: readFilterList(query, 'color'),
+    size: readFilterList(query, 'size'),
+    minPrice: query.get('min') || '',
+    maxPrice: query.get('max') || '',
+    availability: query.get('availability') || '',
+    promotionOnly: query.get('promotion') || ''
+  };
+}
+
+function activeTeamFilterCount(state) {
+  return ['category', 'brand', 'color', 'size'].reduce((count, key) => count + (state[key]?.length || 0), 0)
+    + Number(Boolean(state.minPrice || state.maxPrice))
+    + Number(Boolean(state.availability))
+    + Number(Boolean(state.promotionOnly));
+}
+
+function writeTeamListingUrl(slug, state, replace = false) {
+  const query = new URLSearchParams({ slug });
+  const names = { minPrice: 'min', maxPrice: 'max', promotionOnly: 'promotion' };
+  for (const [key, value] of Object.entries(state)) {
+    const serialized = Array.isArray(value) ? value.join(',') : value;
+    if (serialized && key !== 'page' && key !== 'slug' && !(key === 'sort' && serialized === 'relevance')) query.set(names[key] || key, serialized);
+  }
+  history[replace ? 'replaceState' : 'pushState'](null, '', `${location.pathname}?${query}${location.hash}`);
+}
+
+function teamInitials(name = '') {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  return (words.length > 1 ? words.slice(0, 2).map(word => word[0]).join('') : name.slice(0, 2)).toUpperCase() || 'FDL';
+}
+
+function renderTeamNotFound() {
+  document.title = 'Equipo no encontrado | Fuera de Lugar Sport';
+  const description = document.querySelector('meta[name="description"]');
+  if (description) description.content = 'El equipo que buscas no está disponible.';
+  const main = $('#main');
+  main.innerHTML = `<nav class="breadcrumbs team-breadcrumbs" aria-label="Migas de pan"><a href="index.html">Inicio</a><span aria-hidden="true">›</span><a href="equipos.html">Equipos</a><span aria-hidden="true">›</span><span aria-current="page">No encontrado</span></nav>
+    <div class="empty-state team-not-found"><span class="empty-state__icon" aria-hidden="true">?</span><h1>Equipo no encontrado</h1><p>Puede que el enlace haya cambiado o que este equipo ya no esté disponible.</p><div class="empty-state__actions"><a class="btn btn--primary" href="equipos.html">Ver equipos</a><a class="btn btn--ghost" href="index.html">Ir al inicio</a></div></div>`;
+}
+
+async function initTeamListing(slug) {
+  const root = $('#listing-products');
+  renderProductSkeletons(root, 10);
+  let entity;
+  try { entity = await getEntityBySlug('team', slug); }
+  catch (error) {
+    if (error?.message === 'Listado no encontrado') { renderTeamNotFound(); return; }
+    throw error;
+  }
+  if (entity.active === false) { renderTeamNotFound(); return; }
+
+  const state = teamListingState();
+  const sortSelect = $('#team-sort-select');
+  const shareButton = $('#share-listing');
+  const initials = teamInitials(entity.name);
+  const typeLabel = teamTypeLabel(entity.type);
+  let loaded = [];
+  let baseProductCount = null;
+  let panel;
+
+  $('#listing-title').textContent = entity.name;
+  $('#listing-description').textContent = entity.description || `Encuentra todos los productos disponibles de ${entity.name}.`;
+  $('#team-meta').textContent = typeLabel;
+  $('#team-collection-header').setAttribute('aria-busy', 'false');
+  const crestRoot = $('#team-crest');
+  crestRoot.className = `team-collection-crest team-crest${entity.crest_url ? '' : ' team-crest--fallback'}`;
+  crestRoot.removeAttribute('aria-hidden');
+  crestRoot.innerHTML = entity.crest_url
+    ? `<img src="${localAsset(entity.crest_url)}" alt="Escudo de ${escapeHtml(entity.name)}" width="80" height="80" loading="eager" decoding="async" data-team-crest-image data-team-initials="${escapeHtml(initials)}">`
+    : `<span aria-hidden="true">${escapeHtml(initials)}</span>`;
+  $('#breadcrumbs').innerHTML = `<a href="index.html">Inicio</a><span aria-hidden="true">›</span><a href="equipos.html">Equipos</a><span aria-hidden="true">›</span><span aria-current="page">${escapeHtml(entity.name)}</span>`;
+  document.title = `${entity.name} | Fuera de Lugar Sport`;
+  const metaDescription = document.querySelector('meta[name="description"]');
+  if (metaDescription) metaDescription.content = `Encuentra uniformes, camisetas y productos disponibles de ${entity.name} en Fuera de Lugar Sport.`;
+  shareButton.setAttribute('aria-label', `Compartir productos de ${entity.name}`);
+  sortSelect.value = state.sort;
+
+  const [categories, brands, options] = await Promise.all([getCategories(), getBrands(), getFilterOptions()]);
+  const sections = buildProductFilterSections({ categories, teams: [], brands, options, context: 'team' });
+
+  function selectedCategoryIds() {
+    const selected = categories.filter(category => state.category.includes(category.slug));
+    const ids = new Set(selected.map(category => category.id));
+    categories.forEach(category => { if (selected.some(parent => category.parent_id === parent.id)) ids.add(category.id); });
+    return [...ids];
+  }
+
+  function updateTeamChrome(resultCount) {
+    const count = activeTeamFilterCount(state);
+    const filterCount = $('#team-filter-count');
+    filterCount.textContent = count;
+    filterCount.hidden = !count;
+    $('#open-team-filters').classList.toggle('is-active', Boolean(count));
+    $('#team-result-count').textContent = `${resultCount} producto${resultCount === 1 ? '' : 's'}`;
+    if (baseProductCount != null) $('#team-meta').textContent = `${typeLabel} · ${baseProductCount} producto${baseProductCount === 1 ? '' : 's'}`;
+  }
+
+  async function load(reset = false) {
+    if (reset) {
+      state.page = 0;
+      loaded = [];
+      renderProductSkeletons(root, 10);
+    }
+    const categoryIds = selectedCategoryIds();
+    const brandIds = brands.filter(brand => state.brand.includes(brand.slug)).map(brand => brand.id);
+    const queryOptions = {
+      teamId: entity.id,
+      categoryId: categoryIds.length ? categoryIds : undefined,
+      brandId: brandIds.length ? brandIds : undefined,
+      color: state.color.length ? state.color : undefined,
+      size: state.size.length ? state.size : undefined,
+      minPrice: state.minPrice,
+      maxPrice: state.maxPrice,
+      availability: state.availability,
+      promotion: state.promotionOnly === 'true'
+    };
+    let result;
+    if (state.sort === 'discount') {
+      const orderedIds = await getDiscountSortedProductIds(queryOptions);
+      const visibleIds = orderedIds.slice(state.page * PAGE_SIZE, (state.page + 1) * PAGE_SIZE);
+      const pageResult = visibleIds.length
+        ? await getProducts({ ids: visibleIds, pageSize: PAGE_SIZE, sort: 'relevance' })
+        : { products: [] };
+      result = { products: pageResult.products, count: orderedIds.length };
+    } else {
+      result = await getProducts({ ...queryOptions, page: state.page, pageSize: PAGE_SIZE, sort: state.sort });
+    }
+    loaded = reset ? result.products : [...loaded, ...result.products];
+    const total = result.count ?? loaded.length;
+    if (baseProductCount == null && !activeTeamFilterCount(state)) baseProductCount = total;
+    if (loaded.length) renderProducts(root, loaded, { hideTeamLabel: true });
+    else if (activeTeamFilterCount(state)) {
+      root.classList.remove('skeleton-grid', 'is-loading');
+      root.setAttribute('aria-busy', 'false');
+      root.innerHTML = `<div class="empty-state team-filter-empty"><span class="empty-state__icon" aria-hidden="true">⌕</span><h2>No encontramos productos de ${escapeHtml(entity.name)} con estos filtros</h2><p>Prueba quitando uno de los filtros seleccionados.</p><button id="empty-clear-team-filters" class="btn btn--primary" type="button">Limpiar filtros</button></div>`;
+      $('#empty-clear-team-filters').addEventListener('click', clearAllFilters);
+    } else {
+      root.classList.remove('skeleton-grid', 'is-loading');
+      root.setAttribute('aria-busy', 'false');
+      root.innerHTML = `<div class="empty-state team-filter-empty"><span class="empty-state__icon" aria-hidden="true">○</span><h2>Por ahora no tenemos productos disponibles de ${escapeHtml(entity.name)}</h2><p>Explora otros equipos o descubre el catálogo completo.</p><div class="empty-state__actions"><a class="btn btn--primary" href="equipos.html">Ver otros equipos</a><a class="btn btn--ghost" href="catalogo.html">Explorar catálogo</a></div></div>`;
+    }
+    $('#load-more').hidden = loaded.length >= total || result.products.length < PAGE_SIZE;
+    updateTeamChrome(total);
+  }
+
+  async function clearAllFilters() {
+    Object.assign(state, { page: 0, category: [], brand: [], color: [], size: [], minPrice: '', maxPrice: '', availability: '', promotionOnly: '' });
+    writeTeamListingUrl(entity.slug, state);
+    panel.setApplied(state);
+    await load(true);
+    toast('Mostrando todos los productos');
+  }
+
+  panel = createFilterPanel({
+    root: $('#team-filters'),
+    trigger: $('#open-team-filters'),
+    chipsRoot: $('#team-active-filters'),
+    title: `Filtrar ${entity.name}`,
+    sections,
+    initialState: state,
+    getResultCount: () => null,
+    onApply: async next => {
+      Object.assign(state, next, { page: 0 });
+      writeTeamListingUrl(entity.slug, state);
+      await load(true);
+      toast(activeTeamFilterCount(state) ? 'Filtros aplicados' : 'Mostrando todos los productos');
+    },
+    onRemove: async (key, value) => {
+      if (key === 'price') { state.minPrice = ''; state.maxPrice = ''; }
+      else if (Array.isArray(state[key])) state[key] = state[key].filter(item => item !== value);
+      else state[key] = '';
+      state.page = 0;
+      writeTeamListingUrl(entity.slug, state);
+      panel.setApplied(state);
+      await load(true);
+    },
+    onClear: clearAllFilters,
+    resultNoun: { singular: 'producto', plural: 'productos' },
+    desktopMode: 'drawer'
+  });
+
+  $('#team-filter-backdrop').addEventListener('click', () => panel.close());
+  $('#load-more').addEventListener('click', async event => { state.page += 1; await load(); event.currentTarget.focus(); });
+  sortSelect.addEventListener('change', async event => {
+    state.sort = event.target.value;
+    state.page = 0;
+    writeTeamListingUrl(entity.slug, state);
+    await load(true);
+  });
+  shareButton.addEventListener('click', async () => {
+    try {
+      const shareUrl = new URL(location.href);
+      shareUrl.search = new URLSearchParams({ slug: entity.slug });
+      const result = await sharePage({
+        title: `${entity.name} | Fuera de Lugar Sport`,
+        text: `Mira los productos disponibles de ${entity.name} en Fuera de Lugar Sport.`,
+        url: shareUrl.href
+      });
+      if (result === 'copied') toast('Enlace copiado');
+    } catch (error) {
+      console.error(error);
+      toast('No pudimos compartir el enlace', 'error');
+    }
+  });
+  addEventListener('popstate', async () => {
+    Object.assign(state, teamListingState());
+    sortSelect.value = state.sort;
+    panel.setApplied(state);
+    await load(true);
+  });
+
+  if (activeTeamFilterCount(state)) {
+    const base = await getProducts({ teamId: entity.id, pageSize: 1, sort: 'relevance' });
+    baseProductCount = base.count ?? 0;
+  }
+  await load(true);
+}
+
 export async function initListing() {
   const type = document.body.dataset.listingType;
   const slug = routeSlug();
+  if (type === 'team') {
+    if (!slug) { renderTeamNotFound(); return; }
+    await initTeamListing(slug);
+    return;
+  }
   if (!slug) throw new Error('Falta slug');
   const [entity, categories] = await Promise.all([getEntityBySlug(type, slug), type === 'category' ? getCategories() : Promise.resolve([])]);
   $('#listing-title').textContent = entity.name;

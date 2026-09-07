@@ -1,5 +1,5 @@
 import { supabase } from './supabase.js';
-import { currentPrice, normalizeText } from './helpers.js';
+import { currentPrice, discountPercent, normalizeText } from './helpers.js';
 
 const PRODUCT_SELECT = `
   *,
@@ -79,9 +79,28 @@ async function idsForFilter(table, column, value) {
   return [...new Set(rows.map(row => row.product_id))];
 }
 
-async function availableProductIds() {
-  const rows = unwrap(await supabase.from('product_variants').select('product_id').eq('active', true).gt('stock', 0));
-  return [...new Set(rows.map(row => row.product_id))];
+async function productIdsForAvailability(value, teamId) {
+  if (!value) return null;
+  let productQuery = supabase.from('products').select('id,force_sold_out,force_last_units').eq('status', 'published');
+  if (teamId) productQuery = Array.isArray(teamId) ? productQuery.in('team_id', teamId) : productQuery.eq('team_id', teamId);
+  const products = unwrap(await productQuery);
+  if (!products.length) return [];
+  const variants = unwrap(await supabase
+    .from('product_variants')
+    .select('product_id,stock')
+    .in('product_id', products.map(product => product.id))
+    .eq('active', true));
+  const stockByProduct = variants.reduce((totals, variant) => {
+    totals[variant.product_id] = (totals[variant.product_id] || 0) + Number(variant.stock || 0);
+    return totals;
+  }, {});
+  return products.filter(product => {
+    const stock = stockByProduct[product.id] || 0;
+    const soldOut = product.force_sold_out || stock === 0;
+    if (value === 'sold') return soldOut;
+    if (value === 'low') return !soldOut && (product.force_last_units || stock <= 3);
+    return !soldOut;
+  }).map(product => product.id);
 }
 
 function intersectSets(sets) {
@@ -99,20 +118,21 @@ export async function getProducts({
     categoryId ? await idsForFilter('product_categories', 'category_id', categoryId) : null,
     color ? await idsForFilter('product_colors', 'name', color) : null,
     size ? await idsForFilter('product_sizes', 'name', size) : null,
-    availability === 'available' ? await availableProductIds() : null
+    availability ? await productIdsForAvailability(availability, teamId) : null
   ]);
   if (relationIds) filteredIds = filteredIds ? filteredIds.filter(id => relationIds.includes(id)) : relationIds;
   if (filteredIds && !filteredIds.length) return { products: [], count: 0 };
 
   let query = supabase.from('products').select(PRODUCT_SELECT, { count: 'exact' }).eq('status', 'published');
   if (filteredIds) query = query.in('id', filteredIds);
-  if (teamId) query = query.eq('team_id', teamId);
-  if (brandId) query = query.eq('brand_id', brandId);
+  if (teamId) query = Array.isArray(teamId) ? query.in('team_id', teamId) : query.eq('team_id', teamId);
+  if (brandId) query = Array.isArray(brandId) ? query.in('brand_id', brandId) : query.eq('brand_id', brandId);
   if (featured === true) query = query.eq('featured', true);
   if (promotion) {
     const now = new Date().toISOString();
     query = query
       .not('promo_price', 'is', null)
+      .eq('promo_enabled', true)
       .or(`promo_start.is.null,promo_start.lte.${now}`)
       .or(`promo_end.is.null,promo_end.gte.${now}`);
   }
@@ -134,6 +154,32 @@ export async function getProducts({
     .sort((a, b) => (1 - currentPrice(b) / Number(b.base_price || 1)) - (1 - currentPrice(a) / Number(a.base_price || 1)));
   if (sort === 'relevance' && ids) products.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
   return { products, count };
+}
+
+export async function getDiscountSortedProductIds({
+  teamId, categoryId, brandId, color, size, minPrice, maxPrice, promotion = false, availability
+} = {}) {
+  const relationIds = intersectSets([
+    categoryId ? await idsForFilter('product_categories', 'category_id', categoryId) : null,
+    color ? await idsForFilter('product_colors', 'name', color) : null,
+    size ? await idsForFilter('product_sizes', 'name', size) : null,
+    availability ? await productIdsForAvailability(availability, teamId) : null
+  ]);
+  if (relationIds && !relationIds.length) return [];
+  let query = supabase.from('products').select('id,base_price,promo_price,promo_start,promo_end,promo_enabled,created_at').eq('status', 'published');
+  if (relationIds) query = query.in('id', relationIds);
+  if (teamId) query = Array.isArray(teamId) ? query.in('team_id', teamId) : query.eq('team_id', teamId);
+  if (brandId) query = Array.isArray(brandId) ? query.in('brand_id', brandId) : query.eq('brand_id', brandId);
+  if (promotion) {
+    const now = new Date().toISOString();
+    query = query.not('promo_price', 'is', null).eq('promo_enabled', true).or(`promo_start.is.null,promo_start.lte.${now}`).or(`promo_end.is.null,promo_end.gte.${now}`);
+  }
+  if (minPrice != null && minPrice !== '') query = query.gte('base_price', Number(minPrice));
+  if (maxPrice != null && maxPrice !== '') query = query.lte('base_price', Number(maxPrice));
+  const products = unwrap(await query);
+  return products
+    .sort((a, b) => discountPercent(b) - discountPercent(a) || new Date(b.created_at) - new Date(a.created_at))
+    .map(product => product.id);
 }
 
 export async function getProductBySlug(slug) {

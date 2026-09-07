@@ -35,11 +35,19 @@ export function formatMoney(value = 0) {
   return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(Number(value) || 0);
 }
 
+export function getPromotionStatus(product, now = new Date()) {
+  if (product?.promo_price == null) return 'none';
+  const currentTime = now instanceof Date ? now.getTime() : new Date(now).getTime();
+  const startTime = product.promo_start ? new Date(product.promo_start).getTime() : null;
+  const endTime = product.promo_end ? new Date(product.promo_end).getTime() : null;
+  if (endTime != null && Number.isFinite(endTime) && endTime < currentTime) return 'ended';
+  if (product.promo_enabled === false) return 'inactive';
+  if (startTime != null && Number.isFinite(startTime) && startTime > currentTime) return 'scheduled';
+  return 'active';
+}
+
 export function isPromoActive(product, now = new Date()) {
-  if (product?.promo_price == null) return false;
-  const starts = !product.promo_start || new Date(product.promo_start) <= now;
-  const ends = !product.promo_end || new Date(product.promo_end) >= now;
-  return starts && ends;
+  return getPromotionStatus(product, now) === 'active';
 }
 
 export const currentPrice = product => Number(isPromoActive(product) ? product.promo_price : product?.base_price || 0);

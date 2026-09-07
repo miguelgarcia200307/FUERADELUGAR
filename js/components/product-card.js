@@ -6,11 +6,13 @@ function totalStock(product) {
   return (product.product_variants || []).filter(v => v.active).reduce((sum, variant) => sum + Number(variant.stock || 0), 0);
 }
 
-export function productCard(product) {
+export function productCard(product, { hideTeamLabel = false } = {}) {
   const promo = isPromoActive(product);
   const stock = product.force_sold_out ? 0 : totalStock(product);
   const isNew = Date.now() - new Date(product.created_at).getTime() < 1000 * 60 * 60 * 24 * 14;
-  const meta = product.teams?.name || product.brands?.name || 'Fuera de Lugar Sport';
+  const meta = hideTeamLabel
+    ? product.brands?.name || 'Fuera de Lugar Sport'
+    : product.teams?.name || product.brands?.name || 'Fuera de Lugar Sport';
   const lowStock = stock > 0 && (product.force_last_units || stock <= 3);
   const badge = stock === 0
     ? '<span class="status-badge status-badge--sold">AGOTADO</span>'
@@ -50,10 +52,10 @@ export function bindProductCards(root = document) {
   });
 }
 
-export function renderProducts(root, products) {
+export function renderProducts(root, products, options = {}) {
   root.classList.remove('skeleton-grid', 'is-loading');
   root.setAttribute('aria-busy', 'false');
-  root.innerHTML = products.map(productCard).join('');
+  root.innerHTML = products.map(product => productCard(product, options)).join('');
   bindProductCards(root);
 }
 

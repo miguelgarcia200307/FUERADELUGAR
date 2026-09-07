@@ -1,1 +1,73 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#ffffff"><link rel="icon" type="image/png" sizes="256x256" href="img/logo-icon.png"><link rel="stylesheet" href="assets/css/styles.css"><title>Equipo | Fuera de Lugar Sport</title></head><body data-page="listing" data-listing-type="team"><a class="skip-link" href="#main">Saltar al contenido</a><div id="site-header"></div><main id="main" class="container page"><nav id="breadcrumbs" class="breadcrumbs"></nav><header class="page-header page-header--listing"><div><span class="eyebrow">Equipo</span><h1 id="listing-title">Cargando…</h1><p id="listing-description"></p></div><button id="share-listing" class="btn btn--ghost" type="button">Compartir</button></header><div id="listing-products" class="product-grid skeleton-grid"></div><button id="load-more" class="btn btn--ghost load-more" type="button" hidden>Cargar más</button></main><div id="site-footer"></div><div id="mobile-nav"></div><div id="toast-root" aria-live="polite"></div><script type="module" src="js/app.js"></script></body></html>
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="description" content="Productos del equipo en Fuera de Lugar Sport">
+  <meta name="theme-color" content="#ffffff">
+  <link rel="icon" type="image/png" sizes="256x256" href="img/logo-icon.png">
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <title>Equipo | Fuera de Lugar Sport</title>
+</head>
+<body data-page="listing" data-listing-type="team">
+  <a class="skip-link" href="#main">Saltar al contenido</a>
+  <div id="site-header"></div>
+  <main id="main" class="container page team-page">
+    <nav id="breadcrumbs" class="breadcrumbs team-breadcrumbs" aria-label="Migas de pan">
+      <a href="index.html">Inicio</a><span aria-hidden="true">›</span><a href="equipos.html">Equipos</a><span aria-hidden="true">›</span><span aria-current="page">Cargando…</span>
+    </nav>
+
+    <header id="team-collection-header" class="team-collection-header" aria-busy="true">
+      <div id="team-crest" class="team-collection-crest team-collection-crest--skeleton" aria-hidden="true"></div>
+      <div class="team-collection-copy">
+        <span class="eyebrow">Equipo</span>
+        <h1 id="listing-title"><span class="team-title-skeleton" aria-hidden="true"></span><span class="sr-only">Cargando equipo</span></h1>
+        <p id="team-meta" class="team-collection-meta"><span class="team-meta-skeleton" aria-hidden="true"></span></p>
+        <p id="listing-description" class="team-collection-description"></p>
+      </div>
+    </header>
+
+    <section class="team-catalog" aria-labelledby="team-products-heading">
+      <div class="team-catalog-toolbar">
+        <div class="team-catalog-summary">
+          <h2 id="team-products-heading">Productos</h2>
+          <span id="team-result-count" aria-live="polite">Buscando productos…</span>
+        </div>
+        <div class="team-catalog-actions" aria-label="Herramientas del catálogo">
+          <button id="open-team-filters" class="team-tool-button team-tool-button--filter" type="button" aria-controls="team-filters" aria-expanded="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M14 5v4M4 17h2M10 17h10M10 15v4M4 12h4M12 12h8M8 10v4"></path></svg>
+            <span>Filtros</span><b id="team-filter-count" hidden></b>
+          </button>
+          <label class="team-sort-control">
+            <span>Ordenar</span>
+            <select id="team-sort-select" aria-label="Ordenar productos">
+              <option value="relevance">Relevancia</option>
+              <option value="newest">Más recientes</option>
+              <option value="price-asc">Precio menor a mayor</option>
+              <option value="price-desc">Precio mayor a menor</option>
+              <option value="discount">Mayor descuento</option>
+              <option value="name">A-Z</option>
+            </select>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 8 4 4 4-4"></path></svg>
+          </label>
+          <button id="share-listing" class="team-tool-button team-tool-button--share" type="button" aria-label="Compartir productos del equipo">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.5"></circle><circle cx="6" cy="12" r="2.5"></circle><circle cx="18" cy="19" r="2.5"></circle><path d="m8.2 10.8 7.6-4.5M8.2 13.2l7.6 4.5"></path></svg>
+            <span>Compartir</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="team-active-filters" class="promo-active-filters team-active-filters" hidden></div>
+      <button id="team-filter-backdrop" class="filter-backdrop home-filter-backdrop" type="button" aria-label="Cerrar filtros" tabindex="-1"></button>
+      <aside id="team-filters" class="filters promo-filters home-filters team-product-filters" aria-label="Filtros de productos del equipo"></aside>
+
+      <div id="listing-products" class="product-grid skeleton-grid team-product-grid" aria-live="polite" aria-busy="true"></div>
+      <button id="load-more" class="btn btn--ghost load-more" type="button" hidden>Cargar más</button>
+    </section>
+  </main>
+  <div id="site-footer"></div>
+  <div id="mobile-nav"></div>
+  <div id="toast-root" aria-live="polite"></div>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

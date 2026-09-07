@@ -1,5 +1,5 @@
 import { clearRecentSearches, getRecentSearches, getSearchSuggestions, saveRecentSearch } from '../lib/search.js';
-import { categoryInitials, debounce, escapeHtml, formatMoney, getCategoryUrl, getProductUrl, localAsset } from '../lib/helpers.js';
+import { categoryInitials, currentPrice, debounce, escapeHtml, formatMoney, getCategoryUrl, getProductUrl, localAsset } from '../lib/helpers.js';
 
 const searchIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="m16 16 4 4"></path></svg>';
 
@@ -25,7 +25,7 @@ function productRow(item) {
   return `<a class="search-result" href="${getProductUrl(item.slug)}">
     <span class="search-result__thumb"><img src="${localAsset(item.image_url)}" alt=""></span>
     <span><small>${item.promotion ? 'Promoción' : escapeHtml(item.team_name || item.brand_name || 'Producto')}</small><strong>${escapeHtml(item.name)}</strong></span>
-    <span class="search-result__price">${formatMoney(item.promo_price || item.base_price)}</span>
+    <span class="search-result__price">${formatMoney(currentPrice(item))}</span>
   </a>`;
 }
 

@@ -302,7 +302,7 @@ function customizerMarkup(product, state) {
           ${product.allow_name ? `<label>Nombre<input id="custom-name" maxlength="15" autocomplete="off" value="${escapeHtml(state.name)}" placeholder="TU NOMBRE"></label>` : ''}
           ${product.allow_number ? `<label>Número<input id="custom-number" maxlength="2" inputmode="numeric" pattern="[0-9]*" value="${escapeHtml(state.number)}" placeholder="10"></label>` : ''}
         </div></fieldset>` : ''}
-        ${(product.allow_font || product.allow_text_color) ? `<fieldset class="customizer-group"><legend>Estilo</legend>
+        ${allowText && (product.allow_font || product.allow_text_color) ? `<fieldset class="customizer-group"><legend>Estilo</legend>
           ${product.allow_font ? `<label>Fuente<select id="custom-font">${selectOptions(Object.keys(FONT_MAP), state.font)}</select></label>` : ''}
           ${product.allow_text_color ? `<div class="customizer-color-field"><span>Color del texto</span><div class="customizer-colors">${TEXT_COLORS.map(([color, label]) => `<button type="button" data-text-color="${color}" style="--choice-color:${color}" aria-label="${label}" aria-pressed="false"><i></i><span>${label}</span></button>`).join('')}</div></div>` : ''}
         </fieldset>` : ''}

@@ -1,7 +1,7 @@
 import { getCategories, getProducts, getTeams } from '../lib/api.js';
 import { renderProducts } from '../components/product-card.js';
 import { toast } from '../components/toast.js';
-import { $, categoryInitials, emptyState, escapeHtml, getCategoryUrl, getTeamUrl, localAsset, normalizeText, params, routeSlug, sharePage } from '../lib/helpers.js';
+import { $, categoryIdsWithDescendants, categoryInitials, emptyState, escapeHtml, getCategoryUrl, getTeamUrl, localAsset, normalizeText, params, routeSlug, sharePage } from '../lib/helpers.js';
 
 const byName = (a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' });
 
@@ -45,7 +45,7 @@ export async function initCategoryListing() {
 
   const parent = requested.parent_id ? categories.find(item => item.id === requested.parent_id) || requested : requested;
   const children = categories.filter(item => item.parent_id === parent.id).sort(byName);
-  const availableIds = [parent.id, ...children.map(item => item.id)];
+  const availableIds = categoryIdsWithDescendants(categories, parent.id);
   const initialChild = requested.parent_id ? requested : children.find(item => item.slug === params().get('sub')) || null;
   const [{ products }] = await Promise.all([
     getProducts({ categoryId: availableIds, pageSize: 60, sort: 'name' })
@@ -73,7 +73,8 @@ export async function initCategoryListing() {
   }
 
   function renderSelection({ updateUrl = false } = {}) {
-    const visible = activeChild ? products.filter(product => productHasCategory(product, activeChild.id)) : products;
+    const activeIds = activeChild ? new Set(categoryIdsWithDescendants(categories, activeChild.id)) : null;
+    const visible = activeIds ? products.filter(product => [...activeIds].some(id => productHasCategory(product, id))) : products;
     const root = $('#listing-products');
     root.classList.remove('skeleton-grid');
     document.querySelectorAll('.category-filter').forEach(button => {

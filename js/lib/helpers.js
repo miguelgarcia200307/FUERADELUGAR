@@ -31,6 +31,21 @@ export function slugify(value = '') {
   return normalizeText(value).replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }
 
+export function categoryIdsWithDescendants(categories = [], categoryIds = []) {
+  const ids = new Set((Array.isArray(categoryIds) ? categoryIds : [categoryIds]).filter(Boolean));
+  let changed = true;
+  while (changed) {
+    changed = false;
+    categories.forEach(category => {
+      if (category.parent_id && ids.has(category.parent_id) && !ids.has(category.id)) {
+        ids.add(category.id);
+        changed = true;
+      }
+    });
+  }
+  return [...ids];
+}
+
 export function formatMoney(value = 0) {
   return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(Number(value) || 0);
 }

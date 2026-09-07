@@ -4,7 +4,7 @@ import { renderProducts, renderProductSkeletons } from '../components/product-ca
 import { renderProductSection } from '../components/product-section.js';
 import { toast } from '../components/toast.js';
 import { buildProductFilterSections, createFilterPanel } from '../components/filter-panel.js';
-import { $, $$, categoryInitials, currentPrice, debounce, discountPercent, emptyState, escapeHtml, getCategoryUrl, getTeamUrl, isPromoActive, localAsset, normalizeText, params, routeSlug, sharePage } from '../lib/helpers.js';
+import { $, $$, categoryIdsWithDescendants, categoryInitials, currentPrice, debounce, discountPercent, emptyState, escapeHtml, getCategoryUrl, getTeamUrl, isPromoActive, localAsset, normalizeText, params, routeSlug, sharePage } from '../lib/helpers.js';
 import { getFavorites, setFavorites } from '../lib/store.js';
 
 const PAGE_SIZE = 20;
@@ -53,8 +53,7 @@ export async function initHome() {
   const categorySections = await Promise.all(commercialCategories.map(async section => {
     const matches = categories.filter(category => section.slugs.includes(category.slug));
     if (!matches.length) return { ...section, products: [], url: 'catalogo.html' };
-    const children = categories.filter(category => matches.some(parent => category.parent_id === parent.id));
-    const result = await getProducts({ categoryId: [...matches, ...children].map(item => item.id), pageSize: 8 });
+    const result = await getProducts({ categoryId: categoryIdsWithDescendants(categories, matches.map(item => item.id)), pageSize: 8 });
     return { ...section, products: result.products.filter(isAvailable).slice(0, 8), url: getCategoryUrl(matches[0].slug) };
   }));
   $('#home-category-sections').innerHTML = categorySections.map((section, index) => `<section class="commerce-section${index % 2 ? ' commerce-section--soft' : ''}" data-category-section="${index}"></section>`).join('');
@@ -371,7 +370,8 @@ export async function initCatalog() {
     $('#catalog-products').classList.add('skeleton-grid');
     let ids;
     if (state.q) ids = (await searchProducts(state.q, 50)).map(item => item.id);
-    const categoryId = categories.find(item => item.slug === state.category)?.id;
+    const selectedCategoryId = categories.find(item => item.slug === state.category)?.id;
+    const categoryId = selectedCategoryId ? categoryIdsWithDescendants(categories, selectedCategoryId) : undefined;
     const teamId = teams.find(item => item.slug === state.team)?.id;
     const brandId = brands.find(item => item.slug === state.brand)?.id;
     const result = await getProducts({ page: state.page, pageSize: PAGE_SIZE, sort: state.sort, categoryId, teamId, brandId, color: state.color, size: state.size, minPrice: state.minPrice, maxPrice: state.maxPrice, availability: state.availability, promotion: state.promotion === 'true', ids });
@@ -528,9 +528,7 @@ async function initTeamListing(slug) {
 
   function selectedCategoryIds() {
     const selected = categories.filter(category => state.category.includes(category.slug));
-    const ids = new Set(selected.map(category => category.id));
-    categories.forEach(category => { if (selected.some(parent => category.parent_id === parent.id)) ids.add(category.id); });
-    return [...ids];
+    return categoryIdsWithDescendants(categories, selected.map(category => category.id));
   }
 
   function updateTeamChrome(resultCount) {
@@ -682,7 +680,7 @@ export async function initListing() {
   shareButton.insertAdjacentHTML('beforebegin', `<a class="btn btn--primary" href="catalogo.html?${type}=${encodeURIComponent(entity.slug)}">Usar filtros</a>`);
   const children = type === 'category' ? categories.filter(item => item.parent_id === entity.id) : [];
   if ($('#subcategories')) $('#subcategories').innerHTML = children.map(child => `<a class="chip" href="${getCategoryUrl(child.slug)}">${escapeHtml(child.name)}</a>`).join('');
-  const filters = type === 'category' ? { categoryId: [entity.id, ...children.map(item => item.id)] } : type === 'team' ? { teamId: entity.id } : { brandId: entity.id };
+  const filters = type === 'category' ? { categoryId: categoryIdsWithDescendants(categories, entity.id) } : type === 'team' ? { teamId: entity.id } : { brandId: entity.id };
   const { products } = await getProducts({ ...filters, pageSize: 50 });
   const root = $('#listing-products'); root.classList.remove('skeleton-grid');
   if (products.length) renderProducts(root, products); else root.innerHTML = emptyState('Todavía no hay productos aquí', 'Explora el catálogo completo mientras agregamos novedades.');

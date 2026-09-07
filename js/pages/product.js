@@ -13,11 +13,31 @@ const icons = {
   spark: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c.7 5.5 4.5 9.3 10 10-5.5.7-9.3 4.5-10 10-.7-5.5-4.5-9.3-10-10 5.5-.7 9.3-4.5 10-10Z"></path></svg>'
 };
 
+function productInformationMarkup(product) {
+  const paragraph = value => escapeHtml(String(value || '').trim()).replace(/\r?\n/g, '<br>');
+  const sections = [];
+  if (String(product.description || '').trim()) {
+    sections.push(['description-panel', 'Detalles del producto', `<p>${paragraph(product.description)}</p>`]);
+  }
+  const material = String(product.material || '').trim();
+  const care = String(product.care_instructions || '').trim();
+  if (material || care) {
+    const content = `${material ? `<p><strong>Material:</strong><br>${paragraph(material)}</p>` : ''}${care ? `<p><strong>Cuidados:</strong><br>${paragraph(care)}</p>` : ''}`;
+    sections.push(['material-panel', 'Material y cuidados', content]);
+  }
+  if (String(product.purchase_delivery_info || '').trim()) {
+    sections.push(['delivery-panel', 'Compra y entrega', `<p>${paragraph(product.purchase_delivery_info)}</p>`]);
+  }
+  if (!sections.length) return '';
+  return `<div class="product-accordions" id="product-details">${sections.map(([id, title, content]) => `<section><button type="button" aria-expanded="false" aria-controls="${id}">${title} <span aria-hidden="true">+</span></button><div id="${id}" hidden>${content}</div></section>`).join('')}</div>`;
+}
+
 export async function initProduct() {
   const slug = routeSlug();
   if (!slug) throw new Error('Producto no indicado');
   const product = await getProductBySlug(slug);
   document.title = `${product.name} | Fuera de Lugar Sport`;
+  const canCustomize = product.is_personalizable === true && Boolean(product.allow_name || product.allow_number || product.allow_logo);
 
   const colors = (product.product_colors || []).slice().sort((a, b) => a.sort_order - b.sort_order);
   const sizes = (product.product_sizes || []).slice().sort((a, b) => a.sort_order - b.sort_order);
@@ -67,21 +87,17 @@ export async function initProduct() {
       ${colors.length ? `<div class="option-group" id="color-group"><div class="option-group__head"><strong>Color</strong><span id="selected-color">${escapeHtml(selectedColor?.name || '')}</span></div><div id="color-options" class="swatches">${colors.map(color => colorButtonMarkup(color, selectedColor)).join('')}</div><p class="option-error" id="color-error" hidden>Selecciona un color.</p></div>` : ''}
       <div class="option-group" id="size-group"><div class="option-group__head"><strong>Talla</strong>${product.size_guide_text || product.size_guide_image_url ? '<button id="size-guide" class="link-button" type="button">Guía de tallas</button>' : ''}</div><div id="size-options" class="size-options"></div><p class="option-error" id="size-error" hidden>Selecciona una talla.</p></div>
       <div id="stock-status" class="stock-status" role="status"></div>
-      ${product.is_personalizable ? '<div id="personalization-card"></div>' : ''}
+      ${canCustomize ? '<div id="personalization-card"></div>' : ''}
       <div class="quantity-row"><strong>Cantidad</strong><div class="quantity"><button id="qty-minus" type="button" aria-label="Restar cantidad">−</button><input id="quantity" type="number" inputmode="numeric" min="1" value="${quantity}" aria-label="Cantidad"><button id="qty-plus" type="button" aria-label="Sumar cantidad">+</button></div></div>
       <div id="purchase-total" class="purchase-total" hidden></div>
       <div class="product-actions"><button id="add-cart" class="btn btn--primary btn--block" type="button"></button></div>
-      <div class="product-accordions" id="product-details">
-        <section><button type="button" aria-expanded="false" aria-controls="description-panel">Detalles del producto <span aria-hidden="true">+</span></button><div id="description-panel" hidden><p>${escapeHtml(product.description || 'Información disponible por WhatsApp.')}</p></div></section>
-        <section><button type="button" aria-expanded="false" aria-controls="material-panel">Material y cuidados <span aria-hidden="true">+</span></button><div id="material-panel" hidden><p>${escapeHtml(product.material || 'Consulta las recomendaciones de cuidado con la tienda.')}</p></div></section>
-        <section><button type="button" aria-expanded="false" aria-controls="delivery-panel">Compra y entrega <span aria-hidden="true">+</span></button><div id="delivery-panel" hidden><p>Arma tu pedido y envíalo por WhatsApp. Confirmaremos disponibilidad, pago y forma de entrega personalmente.</p></div></section>
-      </div>
+      ${productInformationMarkup(product)}
     </section>`;
 
   document.querySelector('#product-sticky-buy')?.remove();
   root.insertAdjacentHTML('afterend', '<div id="product-sticky-buy" class="product-sticky-buy" hidden><span><small>Total</small><strong></strong></span><button type="button">Agregar</button></div>');
 
-  const customizer = product.is_personalizable ? createProductCustomizer({
+  const customizer = canCustomize ? createProductCustomizer({
     product,
     initialState: editing?.personalization,
     onApply: () => {
@@ -200,7 +216,9 @@ export async function initProduct() {
     const target = $('#personalization-card');
     const customized = customizer.hasCustomization();
     const price = Number(product.personalization_price || 0);
-    target.innerHTML = `<section class="personalization-card ${customized ? 'is-applied' : ''}"><div class="personalization-card__icon">${icons.spark}</div><div class="personalization-card__copy">${customized ? customizationSummary() : `<strong>Personaliza tu uniforme</strong><span>Nombre, número${product.allow_logo ? ' y logo' : ''}</span><small>Opcional${price ? ` · +${formatMoney(price)}` : ''}</small>`}</div><button type="button" id="open-customizer">${customized ? 'Editar' : 'Personalizar'}</button></section>`;
+    const availableOptions=[product.allow_name?'nombre':'',product.allow_number?'número':'',product.allow_logo?'logo':''].filter(Boolean);
+    const optionsLabel=availableOptions.length>1?`${availableOptions.slice(0,-1).join(', ')} y ${availableOptions.at(-1)}`:availableOptions[0]||'';
+    target.innerHTML = `<section class="personalization-card ${customized ? 'is-applied' : ''}"><div class="personalization-card__icon">${icons.spark}</div><div class="personalization-card__copy">${customized ? customizationSummary() : `<strong>Personaliza tu uniforme</strong><span>${escapeHtml(optionsLabel.charAt(0).toUpperCase()+optionsLabel.slice(1))}</span><small>Opcional${price ? ` · +${formatMoney(price)}` : ''}</small>`}</div><button type="button" id="open-customizer">${customized ? 'Editar' : 'Personalizar'}</button></section>`;
     $('#open-customizer').addEventListener('click', event => customizer.open(event.currentTarget));
   }
 
@@ -301,7 +319,7 @@ export async function initProduct() {
     if (button.getAttribute('aria-expanded') !== 'true') button.click();
     $('#product-details').scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
-  $('.product-accordions').addEventListener('click', event => {
+  $('.product-accordions')?.addEventListener('click', event => {
     const button = event.target.closest('button[aria-controls]');
     if (!button) return;
     const panel = document.getElementById(button.getAttribute('aria-controls'));

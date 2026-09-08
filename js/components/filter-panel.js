@@ -20,8 +20,8 @@ function optionMarkup(section, option, state) {
     : '';
   const meta = option.meta ? `<small>${escapeHtml(option.meta)}</small>` : '';
   const count = Number.isFinite(option.count) ? `<span class="filter-option__count">${option.count}</span>` : '';
-  const swatch = section.type === 'swatches'
-    ? `<span class="filter-swatch" style="--swatch:${escapeHtml(option.color || '#d8ddd9')}" aria-hidden="true"></span>`
+  const swatch = section.type === 'swatches' && option.color
+    ? `<span class="filter-swatch" style="--swatch:${escapeHtml(option.color)}" aria-hidden="true"></span>`
     : '';
   const control = section.control || (section.multiple === false && section.options.length > 1 ? 'radio' : 'checkbox');
   return `<label class="filter-option${section.type === 'chips' ? ' filter-option--chip' : ''}${section.type === 'swatches' ? ' filter-option--swatch' : ''}" data-filter-option data-search-value="${escapeHtml(normalizeText(`${option.label} ${option.meta || ''}`))}">

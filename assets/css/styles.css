@@ -242,6 +242,8 @@ span.team-crest { border-radius: 50%; color: white; background: var(--ink); font
 .swatches,.size-options { display: flex; flex-wrap: wrap; gap: .48rem; }
 .swatch { min-height: 44px; display: flex; gap: .42rem; align-items: center; padding: .46rem .7rem .46rem .48rem; border: 1px solid var(--border); border-radius: 999px; background: white; font-size: .75rem; cursor: pointer; }
 .swatch::before { content: ""; width: 22px; height: 22px; border: 1px solid rgba(0,0,0,.18); border-radius: 50%; background: var(--swatch); box-shadow: inset 0 0 0 2px rgba(255,255,255,.38); }
+.swatch--name-only { padding-left: .7rem; }
+.swatch--name-only::before { display: none; }
 .swatch.active,.size-button.active { color: #07582b; border-color: #75b98d; background: var(--primary-soft); box-shadow: inset 0 0 0 1px #75b98d; font-weight: 800; }
 .size-button { min-width: 48px; min-height: 44px; padding: .45rem .65rem; border: 1px solid var(--border); border-radius: 9px; background: white; font-size: .75rem; cursor: pointer; }
 .size-button:disabled { color: #aeb5b0; background: repeating-linear-gradient(135deg,#f7f8f7,#f7f8f7 5px,#eef0ee 5px,#eef0ee 6px); text-decoration: line-through; cursor: not-allowed; }

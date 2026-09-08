@@ -14,6 +14,7 @@ await new Promise((resolve, reject) => {
 let id = 0;
 const pending = new Map();
 const runtimeErrors = [];
+const consoleErrors = [];
 socket.addEventListener('message', event => {
   const message = JSON.parse(event.data);
   if (message.id && pending.has(message.id)) {
@@ -22,6 +23,7 @@ socket.addEventListener('message', event => {
     return message.error ? task.reject(new Error(message.error.message)) : task.resolve(message.result);
   }
   if (message.method === 'Runtime.exceptionThrown') runtimeErrors.push(message.params.exceptionDetails?.exception?.description || message.params.exceptionDetails?.text || 'Runtime exception');
+  if (message.method === 'Runtime.consoleAPICalled' && message.params.type === 'error') consoleErrors.push(message.params.args.map(item => item.description || item.value || '').join(' '));
 });
 const command = (method, params = {}) => {
   const requestId = ++id;
@@ -51,15 +53,16 @@ const bootstrap = `(() => {
   const brands=[{id:'b1',name:'Marca QA',slug:'marca-qa',active:true}];
   const color={id:'color-1',name:'Verde',hex_code:'#168A4C',sort_order:0};
   const size={id:'size-1',name:'M',sort_order:0};
-  const product={id:'product-qa',name:'Camiseta QA 2026',slug:'qa-product',description:'Camiseta edición 2026.',material:'Poliéster.',care_instructions:'Lavar a mano.',purchase_delivery_info:'Envío nacional disponible.',base_price:99000,promo_price:null,promo_start:null,promo_end:null,promo_enabled:true,status:'published',team_id:'t1',brand_id:'b1',featured:false,is_personalizable:false,personalization_price:15000,allow_name:true,allow_number:true,allow_logo:false,allow_font:true,allow_text_color:true,force_last_units:false,force_sold_out:false,size_guide_text:'M: 50 cm',size_guide_image_url:null,front_template_url:null,back_template_url:null,created_at:new Date().toISOString(),updated_at:new Date().toISOString(),teams:teams[0],brands:brands[0],product_categories:[{category_id:'c-adult-clubs',categories:categories[1]}],product_colors:[color],product_sizes:[size],product_variants:[{id:'variant-1',color_id:color.id,size_id:size.id,stock:8,active:true,updated_at:new Date().toISOString()}],product_images:[{id:'image-1',color_id:null,url:'assets/images/product-green.svg',alt_text:'Producto QA',is_primary:true,sort_order:0}]};
+  const product={id:'product-qa',name:'Camiseta QA 2026',slug:'qa-product',description:'Camiseta edición 2026.',material:'Poliéster.',care_instructions:'Lavar a mano.',purchase_delivery_info:'Envío nacional disponible.',base_price:99000,promo_price:null,promo_start:null,promo_end:null,promo_enabled:true,status:'published',team_id:'t1',brand_id:'b1',featured:false,is_personalizable:false,personalization_price:15000,allow_name:true,allow_number:true,allow_logo:false,allow_font:true,allow_text_color:true,force_last_units:false,force_sold_out:false,size_guide_text:'M: 50 cm',size_guide_image_url:null,front_template_url:null,back_template_url:null,created_at:new Date().toISOString(),updated_at:new Date().toISOString(),teams:teams[0],brands:brands[0],product_categories:[{category_id:'c-adult-clubs',categories:categories[1]}],product_colors:[color],product_sizes:[size],product_variants:[{id:'variant-1',color_id:color.id,size_id:size.id,stock:8,active:true,updated_at:new Date().toISOString()}],product_images:[{id:'image-1',color_id:null,url:'assets/images/product-green.svg',alt_text:'Producto QA',is_primary:true,sort_order:0},{id:'image-color-1',color_id:color.id,url:'assets/images/product-blue.svg',alt_text:'Producto QA verde',is_primary:false,sort_order:1}]};
   if(location.pathname.endsWith('/producto.html')){try{Object.assign(product,JSON.parse(sessionStorage.getItem('qa-product-override')||'{}'));}catch{}}
-  window.__qaData={categories,teams,brands,product};window.__savedProductPayload=null;window.__savedCategoryRows=null;
+  window.__qaData={categories,teams,brands,product};window.__savedProductPayload=null;window.__savedCategoryRows=null;window.__savedImageRows=[];window.__savedColors=[];window.__primaryUpdates=0;
   const originalFetch=window.fetch.bind(window);
   window.fetch=async(input,options={})=>{
     const url=typeof input==='string'?input:input.url;if(!url.includes('gacqqaimdfvkmznsglpg.supabase.co'))return originalFetch(input,options);
     const method=(options.method||(typeof input!=='string'&&input.method)||'GET').toUpperCase();
-    const payload=options.body?JSON.parse(options.body):null;let body=[];
-    if(url.includes('/rest/v1/admins')) body={user_id:userId};
+    const payload=typeof options.body==='string'?JSON.parse(options.body):null;let body=[];
+    if(url.includes('/storage/v1/object/product-images')) body={Key:'product-images/qa-upload.jpg'};
+    else if(url.includes('/rest/v1/admins')) body={user_id:userId};
     else if(url.includes('/rest/v1/categories')) body=categories;
     else if(url.includes('/rest/v1/teams')) body=teams;
     else if(url.includes('/rest/v1/brands')) body=brands;
@@ -71,9 +74,15 @@ const bootstrap = `(() => {
       }else body=url.includes('slug=eq.')?product:[product];
     }
     else if(url.includes('/rest/v1/product_categories')){if(method==='POST'){window.__savedCategoryRows=payload;body=payload;}else body=[];}
-    else if(url.includes('/rest/v1/product_colors')){body=method==='GET'?[{id:color.id}]:Object.assign(color,payload||{});}
+    else if(url.includes('/rest/v1/product_colors')){if(method==='GET')body=[{id:color.id}];else if(method==='POST'){body={id:'color-new-'+(window.__savedColors.length+1),...payload};window.__savedColors.push(body);}else body=Object.assign(color,payload||{});}
     else if(url.includes('/rest/v1/product_sizes')){body=method==='GET'?[{id:size.id}]:Object.assign(size,payload||{});}
     else if(url.includes('/rest/v1/product_variants')) body=payload||[];
+    else if(url.includes('/rest/v1/product_images')){
+      if(method==='POST'){const row={id:'image-'+(window.__savedImageRows.length+2),...payload};window.__savedImageRows.push(row);body=row;}
+      else if(method==='PATCH'){if(payload?.is_primary===true)window.__primaryUpdates++;body=payload||{};}
+      else if(method==='DELETE'){body=[];}
+      else body=product.product_images;
+    }
     return new Response(JSON.stringify(body),{status:200,headers:{'content-type':'application/json','content-range':'0-0/1'}});
   };
 })()`;
@@ -102,6 +111,8 @@ const initial = await evaluate(`(() => ({
   sizeGuideOutsideCustomization:!document.querySelector('[data-customization-panel] [name="size_guide_text"]'),
   overflow:document.querySelector('.modal--product').scrollWidth>document.querySelector('.modal--product').clientWidth
 }))()`);
+
+const colorDeleteChoice = await evaluate(`(async()=>{const remove=document.querySelector('[data-remove-color]');remove.click();await new Promise(resolve=>setTimeout(resolve,30));const labels=[...document.querySelectorAll('.confirm-dialog__actions button')].map(button=>button.textContent.trim());[...document.querySelectorAll('.confirm-dialog__actions button')].find(button=>button.textContent.trim()==='Cancelar').click();await new Promise(resolve=>setTimeout(resolve,20));return{labels,colorStillPresent:Boolean(document.querySelector('[data-remove-color]'))};})()`);
 
 const categoryBehavior = await evaluate(`(async()=>{
   const parent=document.querySelector('[name="categoryIds"][value="c-adult"]');const child=document.querySelector('[name="categoryIds"][value="c-adult-clubs"]');const toggle=document.querySelector('[data-category-toggle="c-adult"]');
@@ -132,6 +143,7 @@ for(const [width,height] of [[320,568],[360,800],[390,844],[430,932],[768,1024],
 }
 const screenshotPath=join(tmpdir(),'fdl-product-editor-390.png');
 await command('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
+await evaluate(`document.querySelector('#photo-tabs').closest('.admin-form__section').scrollIntoView({block:'start'})`);await delay(80);
 await writeFile(screenshotPath,Buffer.from((await command('Page.captureScreenshot',{format:'png',captureBeyondViewport:false})).data,'base64'));
 
 await evaluate(`document.querySelector('.product-editor [type="submit"]').click()`);await delay(450);
@@ -141,16 +153,23 @@ const createFlow = await evaluate(`(async()=>{
   const form=document.querySelector('.product-editor');const set=(name,value)=>{form.elements[name].value=value;form.elements[name].dispatchEvent(new Event('input',{bubbles:true}));};
   set('name','Producto integral QA móvil');set('description','Descripción real creada desde el formulario.');set('base_price','125000');set('material','Poliéster deportivo');set('care_instructions','Lavar con agua fría.');set('purchase_delivery_info','Domicilio en Valledupar y envío nacional.');set('size_guide_text','M: 50 cm de ancho.');
   form.elements.status.value='published';form.querySelector('[name="categoryIds"][value="c-adult"]').click();form.querySelector('[name="categoryIds"][value="c-adult-clubs"]').click();
-  form.querySelector('#add-color').click();form.querySelector('#admin-colors [data-field="name"]').value='Verde QA';form.querySelector('#admin-colors [data-field="name"]').dispatchEvent(new Event('change',{bubbles:true}));
-  form.querySelector('#add-size').click();form.querySelector('#admin-sizes [data-field="name"]').value='M';form.querySelector('#admin-sizes [data-field="name"]').dispatchEvent(new Event('change',{bubbles:true}));
+  form.querySelector('#new-color-name').value='Verde QA';form.querySelector('#add-color').click();
+  form.querySelector('#new-color-name').value='verde qa';form.querySelector('#add-color').click();const duplicateMessage=form.querySelector('#color-feedback').textContent;
+  const firstColorTab=[...form.querySelectorAll('.photo-tab')].find(node=>node.textContent.includes('Verde QA'));firstColorTab.click();
+  const transfer=new DataTransfer();transfer.items.add(new File(['uno'],'foto-repetida.jpg',{type:'image/jpeg'}));transfer.items.add(new File(['dos'],'foto-repetida.jpg',{type:'image/jpeg'}));form.querySelector('#product-files').files=transfer.files;form.querySelector('#product-files').dispatchEvent(new Event('change',{bubbles:true}));
+  const firstColorInput=form.querySelector('[data-color-name]');firstColorInput.value='Azul rey';firstColorInput.dispatchEvent(new Event('input',{bubbles:true}));
+  form.querySelector('#new-color-name').value='Rojo';form.querySelector('#add-color').click();[...form.querySelectorAll('.photo-tab')].find(node=>node.textContent.includes('Rojo')).click();const redTransfer=new DataTransfer();redTransfer.items.add(new File(['rojo'],'rojo.jpg',{type:'image/jpeg'}));form.querySelector('#product-files').files=redTransfer.files;form.querySelector('#product-files').dispatchEvent(new Event('change',{bubbles:true}));
+  [...form.querySelectorAll('.photo-tab')].find(node=>node.textContent.includes('Azul rey')).click();const moved=form.querySelector('[data-photo-color]');moved.value='';moved.dispatchEvent(new Event('change',{bubbles:true}));
+  form.querySelector('#add-size').click();form.querySelector('#admin-sizes input').value='M';form.querySelector('#admin-sizes input').dispatchEvent(new Event('change',{bubbles:true}));
   form.querySelector('[data-stock]').value='12';form.elements.is_personalizable.click();form.elements.allow_logo.click();set('personalization_price','18000');
-  const before={width:innerWidth,overflow:document.documentElement.scrollWidth>innerWidth,categories:[...form.querySelectorAll('[name="categoryIds"]:checked')].map(input=>input.value),customizationVisible:!form.querySelector('[data-customization-panel]').hidden,stock:form.querySelector('[data-stock]').value};
-  form.querySelector('[type="submit"]').click();await new Promise(resolve=>setTimeout(resolve,450));const p=window.__savedProductPayload;
-  return{before,saved:{name:p?.name,description:p?.description,material:p?.material,care_instructions:p?.care_instructions,purchase_delivery_info:p?.purchase_delivery_info,is_personalizable:p?.is_personalizable,allow_name:p?.allow_name,allow_number:p?.allow_number,allow_logo:p?.allow_logo,personalization_price:p?.personalization_price,status:p?.status},categoryRows:window.__savedCategoryRows,closed:!document.querySelector('.modal--product')};
+  const before={width:innerWidth,overflow:document.documentElement.scrollWidth>innerWidth,categories:[...form.querySelectorAll('[name="categoryIds"]:checked')].map(input=>input.value),customizationVisible:!form.querySelector('[data-customization-panel]').hidden,stock:form.querySelector('[data-stock]').value,sectionOrder:[...form.querySelectorAll(':scope>.admin-form__section h3')].map(node=>node.textContent),hexVisible:Boolean(form.querySelector('[data-field="hex_code"]')),tabs:[...form.querySelectorAll('.photo-tab')].map(node=>node.textContent.trim()),activePhotos:form.querySelectorAll('.photo-card').length,duplicateMessage,renamedAssociation:[...form.querySelectorAll('.photo-tab')].some(node=>node.textContent.includes('Azul rey 1'))};
+  form.querySelector('[type="submit"]').click();await new Promise(resolve=>setTimeout(resolve,1200));const p=window.__savedProductPayload;
+  return{before,saved:{name:p?.name,description:p?.description,material:p?.material,care_instructions:p?.care_instructions,purchase_delivery_info:p?.purchase_delivery_info,is_personalizable:p?.is_personalizable,allow_name:p?.allow_name,allow_number:p?.allow_number,allow_logo:p?.allow_logo,personalization_price:p?.personalization_price,status:p?.status},imageRows:window.__savedImageRows,primaryUpdates:window.__primaryUpdates,categoryRows:window.__savedCategoryRows,closed:!document.querySelector('.modal--product'),formError:form.querySelector('[data-product-form-error]')?.textContent,toasts:[...document.querySelectorAll('.toast')].map(node=>node.textContent),photoStates:[...form.querySelectorAll('.photo-card__status')].map(node=>node.textContent)};
 })()`);
+const noColorFlow = await evaluate(`(async()=>{document.querySelector('#new-product').click();await new Promise(resolve=>setTimeout(resolve,40));const form=document.querySelector('.product-editor');form.elements.name.value='Producto sin color QA';form.elements.base_price.value='50000';form.querySelector('#add-size').click();form.querySelector('#admin-sizes input').value='Única';form.querySelector('#admin-sizes input').dispatchEvent(new Event('change',{bubbles:true}));const transfer=new DataTransfer();transfer.items.add(new File(['general'],'general.jpg',{type:'image/jpeg'}));form.querySelector('#product-files').files=transfer.files;form.querySelector('#product-files').dispatchEvent(new Event('change',{bubbles:true}));const before={colorCount:form.querySelectorAll('[data-color-name]').length,tabs:[...form.querySelectorAll('.photo-tab')].map(node=>node.textContent.trim()),photos:form.querySelectorAll('.photo-card').length};form.requestSubmit();for(let attempt=0;attempt<30;attempt+=1){await new Promise(resolve=>setTimeout(resolve,100));if(!document.querySelector('.product-editor'))break;}return{before,closed:!document.querySelector('.product-editor'),error:form.querySelector('[data-product-form-error]')?.textContent};})()`);
 await evaluate(`sessionStorage.setItem('qa-product-override',JSON.stringify({is_personalizable:false,allow_name:true,allow_number:true,allow_logo:true}))`);
-await command('Page.navigate',{url:'http://localhost:8080/producto.html?slug=qa-product'});await delay(900);
-const publicData = await evaluate(`(() => ({accordions:[...document.querySelectorAll('.product-accordions>section>button')].map(button=>button.textContent.trim()),text:document.querySelector('.product-accordions')?.innerText,personalization:Boolean(document.querySelector('#personalization-card')),overflow:document.documentElement.scrollWidth>innerWidth,product:window.__qaData?.product,error:document.querySelector('main .empty-state')?.innerText||null}))()`);
+await command('Page.navigate',{url:'http://localhost:8080/producto.html?slug=qa-product'});for(let attempt=0;attempt<40;attempt+=1){await delay(100);if(await evaluate(`Boolean(document.querySelector('#main-product-image'))`))break;}
+const publicData = await evaluate(`(() => ({accordions:[...document.querySelectorAll('.product-accordions>section>button')].map(button=>button.textContent.trim()),text:document.querySelector('.product-accordions')?.innerText,personalization:Boolean(document.querySelector('#personalization-card')),galleryCount:document.querySelectorAll('.gallery__thumb').length,mainImage:document.querySelector('#main-product-image')?.getAttribute('src'),overflow:document.documentElement.scrollWidth>innerWidth,product:window.__qaData?.product,error:document.querySelector('main .empty-state')?.innerText||null}))()`);
 await evaluate(`(()=>{sessionStorage.setItem('qa-product-override',JSON.stringify({description:null,material:null,care_instructions:null,purchase_delivery_info:null}));location.reload();})()`);await delay(700);
 const emptyPublic = await evaluate(`(() => ({accordions:document.querySelectorAll('.product-accordions>section').length,details:Boolean(document.querySelector('#product-details')),bodyError:document.querySelector('main .empty-state h1')?.textContent||null}))()`);
 await evaluate(`(()=>{sessionStorage.setItem('qa-product-override',JSON.stringify({description:'Detalle real',material:'Material real',care_instructions:'Cuidado real',purchase_delivery_info:'Entrega real',is_personalizable:true,allow_name:false,allow_number:false,allow_logo:true}));location.reload();})()`);await delay(700);
@@ -168,5 +187,5 @@ await evaluate(`(()=>{const select=document.querySelector('#custom-font');select
 const fontScreenshotPath=join(tmpdir(),'fdl-customizer-classic-390.png');
 await writeFile(fontScreenshotPath,Buffer.from((await command('Page.captureScreenshot',{format:'png',captureBeyondViewport:false})).data,'base64'));
 
-console.log(JSON.stringify({initial,categoryBehavior,customization,preview,viewports,normalizedOff,createFlow,publicData,emptyPublic,validPublicCustomization,fontMetrics,runtimeErrors,screenshotPath,fontSportScreenshotPath,fontScreenshotPath},null,2));
+console.log(JSON.stringify({initial,colorDeleteChoice,categoryBehavior,customization,preview,viewports,normalizedOff,createFlow,noColorFlow,publicData,emptyPublic,validPublicCustomization,fontMetrics,runtimeErrors,consoleErrors,screenshotPath,fontSportScreenshotPath,fontScreenshotPath},null,2));
 socket.close();

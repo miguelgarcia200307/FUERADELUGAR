@@ -297,36 +297,103 @@ export async function saveSettings(values) {
   return unwrap(await supabase.from('site_settings').update(values).eq('id', 1).select().single());
 }
 
-export async function replaceProductRelations(productId, { categoryIds, colors, sizes, variants }) {
+export async function prepareProductRelations(productId, { categoryIds, colors, sizes }) {
   if (categoryIds) {
     unwrap(await supabase.from('product_categories').delete().eq('product_id', productId));
     if (categoryIds.length) unwrap(await supabase.from('product_categories').insert(categoryIds.map(category_id => ({ product_id: productId, category_id }))));
   }
-  if (colors && sizes && variants) {
-    const existingColors = unwrap(await supabase.from('product_colors').select('id').eq('product_id', productId));
-    const existingSizes = unwrap(await supabase.from('product_sizes').select('id').eq('product_id', productId));
-    const keptColorIds = colors.map(item => item.id).filter(Boolean);
-    const keptSizeIds = sizes.map(item => item.id).filter(Boolean);
-    for (const item of existingColors.filter(row => !keptColorIds.includes(row.id))) unwrap(await supabase.from('product_colors').delete().eq('id', item.id));
-    for (const item of existingSizes.filter(row => !keptSizeIds.includes(row.id))) unwrap(await supabase.from('product_sizes').delete().eq('id', item.id));
-    const savedColors = [];
-    for (const [index, item] of colors.entries()) savedColors.push(unwrap(await (item.id
-      ? supabase.from('product_colors').update({ name: item.name, hex_code: item.hex_code || null, sort_order: index }).eq('id', item.id)
-      : supabase.from('product_colors').insert({ product_id: productId, name: item.name, hex_code: item.hex_code || null, sort_order: index })).select().single()));
-    const savedSizes = [];
-    for (const [index, item] of sizes.entries()) savedSizes.push(unwrap(await (item.id
-      ? supabase.from('product_sizes').update({ name: item.name, sort_order: index }).eq('id', item.id)
-      : supabase.from('product_sizes').insert({ product_id: productId, name: item.name, sort_order: index })).select().single()));
-    unwrap(await supabase.from('product_variants').delete().eq('product_id', productId));
-    const rows = [];
-    for (const color of savedColors) for (const size of savedSizes) {
-      const original = variants.find(v => v.colorName === color.name && v.sizeName === size.name);
-      rows.push({ product_id: productId, color_id: color.id, size_id: size.id, stock: Math.max(0, Number(original?.stock || 0)), active: original?.active !== false });
-    }
-    if (rows.length) unwrap(await supabase.from('product_variants').insert(rows));
-    return { savedColors, savedSizes };
+  const existingColors = unwrap(await supabase.from('product_colors').select('id').eq('product_id', productId));
+  const existingSizes = unwrap(await supabase.from('product_sizes').select('id').eq('product_id', productId));
+  const savedColors = [];
+  for (const [index, item] of colors.entries()) {
+    const row = unwrap(await (item.id
+      ? supabase.from('product_colors').update({ name: item.name, sort_order: index }).eq('id', item.id)
+      : supabase.from('product_colors').insert({ product_id: productId, name: item.name, sort_order: index })).select().single());
+    savedColors.push({ ...row, client_id: item.clientId });
   }
-  return { savedColors: [], savedSizes: [] };
+  const savedSizes = [];
+  for (const [index, item] of sizes.entries()) {
+    const row = unwrap(await (item.id
+      ? supabase.from('product_sizes').update({ name: item.name, sort_order: index }).eq('id', item.id)
+      : supabase.from('product_sizes').insert({ product_id: productId, name: item.name, sort_order: index })).select().single());
+    savedSizes.push({ ...row, client_id: item.clientId });
+  }
+  return {
+    savedColors,
+    savedSizes,
+    removedColorIds: existingColors.map(row => row.id).filter(id => !colors.some(item => item.id === id)),
+    removedSizeIds: existingSizes.map(row => row.id).filter(id => !sizes.some(item => item.id === id))
+  };
+}
+
+export async function finalizeProductRelations(productId, { savedColors, savedSizes, removedColorIds, removedSizeIds, variants }) {
+  unwrap(await supabase.from('product_variants').delete().eq('product_id', productId));
+  if (removedColorIds.length) unwrap(await supabase.from('product_colors').delete().in('id', removedColorIds));
+  if (removedSizeIds.length) unwrap(await supabase.from('product_sizes').delete().in('id', removedSizeIds));
+  const rows = [];
+  for (const color of savedColors) for (const size of savedSizes) {
+    const original = variants.find(item => item.colorKey === color.client_id && item.sizeKey === size.client_id);
+    rows.push({ product_id: productId, color_id: color.id, size_id: size.id, stock: Math.max(0, Number(original?.stock || 0)), active: original?.active !== false });
+  }
+  if (rows.length) unwrap(await supabase.from('product_variants').insert(rows));
+}
+
+async function removeUploadedProductImage(url) {
+  const marker = '/storage/v1/object/public/product-images/';
+  let path = '';
+  try {
+    const pathname = new URL(url).pathname;
+    const index = pathname.indexOf(marker);
+    if (index < 0) return;
+    path = decodeURIComponent(pathname.slice(index + marker.length));
+  } catch { return; }
+  if (path && !path.includes('..')) unwrap(await supabase.storage.from('product-images').remove([path]));
+}
+
+export async function syncProductImages(productId, images, colorIds, onProgress = () => {}) {
+  const active = images.filter(image => !image.deleted);
+  const failures = [];
+  for (const image of images.filter(item => item.deleted && item.id)) {
+    try {
+      unwrap(await supabase.from('product_images').delete().eq('id', image.id));
+      await removeUploadedProductImage(image.url);
+    } catch (error) { failures.push({ image, error }); }
+  }
+  for (const image of active.filter(item => !item.id && item.file)) {
+    image.status = 'uploading'; onProgress(image);
+    let url = '';
+    try {
+      url = await uploadImage('product-images', image.file, productId);
+      const row = unwrap(await supabase.from('product_images').insert({ product_id: productId, color_id: image.colorKey ? colorIds.get(image.colorKey) || null : null, url, alt_text: image.file.name, is_primary: false, sort_order: image.sortOrder }).select().single());
+      Object.assign(image, row, { file: null, url: row.url || url, status: 'loaded' });
+      onProgress(image);
+    } catch (error) {
+      if (url) try { await removeUploadedProductImage(url); } catch (cleanupError) { console.error('No se pudo limpiar el archivo incompleto:', cleanupError); }
+      console.error(`No se pudo cargar ${image.name || 'la fotografía'}:`, error);
+      image.status = 'error'; image.error = error; failures.push({ image, error }); onProgress(image);
+    }
+  }
+  const persisted = active.filter(image => image.id);
+  for (const image of persisted) {
+    try {
+      unwrap(await supabase.from('product_images').update({ color_id: image.colorKey ? colorIds.get(image.colorKey) || null : null, is_primary: false, sort_order: image.sortOrder }).eq('id', image.id));
+      if (image.status !== 'error') image.status = 'loaded';
+      onProgress(image);
+    } catch (error) { image.status = 'error'; image.error = error; failures.push({ image, error }); onProgress(image); }
+  }
+  const candidates = persisted.filter(image => image.status !== 'error');
+  const primary = candidates.find(image => image.isPrimary) || candidates.find(image => !image.colorKey) || candidates[0];
+  if (primary) {
+    try { unwrap(await supabase.from('product_images').update({ is_primary: true }).eq('id', primary.id)); primary.isPrimary = true; }
+    catch (error) { primary.status = 'error'; primary.error = error; failures.push({ image: primary, error }); }
+  }
+  candidates.filter(image => image !== primary).forEach(image => { image.isPrimary = false; });
+  if (failures.length) {
+    const error = new Error(`${failures.length} fotografía${failures.length === 1 ? '' : 's'} no se pudieron guardar.`);
+    error.imageFailures = failures;
+    throw error;
+  }
+  return persisted;
 }
 
 export async function uploadImage(bucket, file, folder = 'uploads') {
@@ -334,16 +401,6 @@ export async function uploadImage(bucket, file, folder = 'uploads') {
   const path = `${folder}/${crypto.randomUUID()}.${extension}`;
   unwrap(await supabase.storage.from(bucket).upload(path, file, { cacheControl: '3600', upsert: false }));
   return supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
-}
-
-export async function saveProductImages(productId, files, colorId = null) {
-  const rows = [];
-  for (const [index, file] of files.entries()) {
-    const url = await uploadImage('product-images', file, productId);
-    rows.push({ product_id: productId, color_id: colorId, url, alt_text: file.name, is_primary: index === 0, sort_order: index });
-  }
-  if (rows.length) return unwrap(await supabase.from('product_images').insert(rows).select());
-  return [];
 }
 
 export { supabase };

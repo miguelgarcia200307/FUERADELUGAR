@@ -108,14 +108,15 @@ export async function initProduct() {
 
   function colorButtonMarkup(color, selected) {
     const active = color.id === selected?.id;
-    return `<button class="swatch ${active ? 'active' : ''}" style="--swatch:${escapeHtml(color.hex_code || '#ddd')}" data-color="${color.id}" type="button" aria-pressed="${active}"><span>${escapeHtml(color.name)}</span></button>`;
+    const swatch = color.hex_code ? ` style="--swatch:${escapeHtml(color.hex_code)}"` : '';
+    return `<button class="swatch ${color.hex_code ? '' : 'swatch--name-only'} ${active ? 'active' : ''}"${swatch} data-color="${color.id}" type="button" aria-pressed="${active}"><span>${escapeHtml(color.name)}</span></button>`;
   }
 
   function filteredImages() {
     const all = (product.product_images || []).slice().sort((a, b) => Number(b.is_primary) - Number(a.is_primary) || a.sort_order - b.sort_order);
     const byColor = all.filter(image => image.color_id === selectedColor?.id);
     const general = all.filter(image => !image.color_id);
-    return byColor.length ? byColor : general.length ? general : all;
+    return selectedColor && byColor.length ? [...byColor, ...general] : general.length ? general : all;
   }
 
   function updateGallery() {

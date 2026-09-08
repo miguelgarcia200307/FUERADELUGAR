@@ -64,3 +64,23 @@ export function confirmAction(message, title = 'Confirmar', { confirmLabel = 'Co
     wrapper.querySelector('[data-cancel]').addEventListener('click', () => { resolve(false); modal.close(); });
   });
 }
+
+export function chooseAction(message, title, actions, { trigger = null } = {}) {
+  return new Promise(resolve => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'confirm-dialog';
+    wrapper.innerHTML = '<div class="confirm-dialog__message"><span class="confirm-dialog__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 2.8 19h18.4L12 3Z"></path><path d="M12 9v4"></path><path d="M12 16.5h.01"></path></svg></span><p></p></div><div class="confirm-dialog__actions confirm-dialog__actions--stacked"></div>';
+    wrapper.querySelector('p').textContent = message;
+    const actionsRoot = wrapper.querySelector('.confirm-dialog__actions');
+    let settled = false;
+    const modal = openModal({ title, content: wrapper, className: 'modal--confirm', trigger, onClose: () => { if (!settled) resolve(null); } });
+    actions.forEach(({ value, label, tone = 'ghost' }) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `btn btn--${tone}`;
+      button.textContent = label;
+      button.addEventListener('click', () => { settled = true; resolve(value); modal.close(); });
+      actionsRoot.append(button);
+    });
+  });
+}

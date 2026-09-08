@@ -213,6 +213,14 @@ export async function getEntityBySlug(type, slug) {
   return entity;
 }
 
+export async function getEntityById(type, id) {
+  const table = { category: 'categories', team: 'teams', brand: 'brands' }[type];
+  if (!table) throw new Error('Tipo de listado no válido');
+  const entity = unwrap(await supabase.from(table).select('*').eq('id', id).maybeSingle());
+  if (!entity) throw new Error('Listado no encontrado');
+  return entity;
+}
+
 export async function searchProducts(term, limit = 8) {
   const clean = term.trim();
   if (clean.length < 2) return [];

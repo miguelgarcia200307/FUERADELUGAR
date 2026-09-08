@@ -74,7 +74,11 @@ export function discountPercent(product) {
 
 export function getProductUrl(slug) { return `producto.html?slug=${encodeURIComponent(slug)}`; }
 export function getCategoryUrl(slug) { return `categoria.html?slug=${encodeURIComponent(slug)}`; }
-export function getTeamUrl(slug) { return `equipo.html?slug=${encodeURIComponent(slug)}`; }
+// TEAM DETAIL ENTRY POINT: every explicit team link must use this canonical URL.
+export function getTeamUrl(team) {
+  const slug = typeof team === 'object' ? team?.slug : team;
+  return `equipo.html?slug=${encodeURIComponent(String(slug || '').trim())}`;
+}
 export function getBrandUrl(slug) { return `marca.html?slug=${encodeURIComponent(slug)}`; }
 
 export function pagePrefix() { return location.pathname.includes('/admin/') ? '../' : ''; }

@@ -1,4 +1,4 @@
-import { getBrands, getCategories, getDiscountSortedProductIds, getEntityBySlug, getFilterOptions, getProducts, getProductsByIds, getPublishedProductCountsByTeam, getTeams, searchProducts } from '../lib/api.js';
+import { getBrands, getCategories, getDiscountSortedProductIds, getEntityById, getEntityBySlug, getFilterOptions, getProducts, getProductsByIds, getPublishedProductCountsByTeam, getTeams, searchProducts } from '../lib/api.js';
 import { loadSettings } from '../components/layout.js';
 import { renderProducts, renderProductSkeletons } from '../components/product-card.js';
 import { renderProductSection } from '../components/product-section.js';
@@ -472,6 +472,16 @@ function writeTeamListingUrl(slug, state, replace = false) {
   history[replace ? 'replaceState' : 'pushState'](null, '', `${location.pathname}?${query}${location.hash}`);
 }
 
+function setTeamCanonicalUrl(slug) {
+  let canonical = document.querySelector('link[rel="canonical"]');
+  if (!canonical) {
+    canonical = document.createElement('link');
+    canonical.rel = 'canonical';
+    document.head.append(canonical);
+  }
+  canonical.href = new URL(getTeamUrl(slug), location.href).href;
+}
+
 function teamInitials(name = '') {
   const words = name.trim().split(/\s+/).filter(Boolean);
   return (words.length > 1 ? words.slice(0, 2).map(word => word[0]).join('') : name.slice(0, 2)).toUpperCase() || 'FDL';
@@ -486,11 +496,12 @@ function renderTeamNotFound() {
     <div class="empty-state team-not-found"><span class="empty-state__icon" aria-hidden="true">?</span><h1>Equipo no encontrado</h1><p>Puede que el enlace haya cambiado o que este equipo ya no esté disponible.</p><div class="empty-state__actions"><a class="btn btn--primary" href="equipos.html">Ver equipos</a><a class="btn btn--ghost" href="index.html">Ir al inicio</a></div></div>`;
 }
 
-async function initTeamListing(slug) {
+// Sole TEAM DETAIL loader/renderer. Navigation origin must never select another layout.
+async function initTeamListing(slug, initialEntity = null) {
   const root = $('#listing-products');
   renderProductSkeletons(root, 10);
   let entity;
-  try { entity = await getEntityBySlug('team', slug); }
+  try { entity = initialEntity || await getEntityBySlug('team', slug); }
   catch (error) {
     if (error?.message === 'Listado no encontrado') { renderTeamNotFound(); return; }
     throw error;
@@ -498,6 +509,8 @@ async function initTeamListing(slug) {
   if (entity.active === false) { renderTeamNotFound(); return; }
 
   const state = teamListingState();
+  writeTeamListingUrl(entity.slug, state, true);
+  setTeamCanonicalUrl(entity.slug);
   const sortSelect = $('#team-sort-select');
   const shareButton = $('#share-listing');
   const initials = teamInitials(entity.name);
@@ -635,12 +648,10 @@ async function initTeamListing(slug) {
   });
   shareButton.addEventListener('click', async () => {
     try {
-      const shareUrl = new URL(location.href);
-      shareUrl.search = new URLSearchParams({ slug: entity.slug });
       const result = await sharePage({
         title: `${entity.name} | Fuera de Lugar Sport`,
         text: `Mira los productos disponibles de ${entity.name} en Fuera de Lugar Sport.`,
-        url: shareUrl.href
+        url: new URL(getTeamUrl(entity), location.href).href
       });
       if (result === 'copied') toast('Enlace copiado');
     } catch (error) {
@@ -664,10 +675,23 @@ async function initTeamListing(slug) {
 
 export async function initListing() {
   const type = document.body.dataset.listingType;
-  const slug = routeSlug();
+  let slug = routeSlug();
   if (type === 'team') {
+    let entity = null;
+    if (!slug) slug = routeSlug('team');
+    if (!slug) {
+      const legacyId = params().get('id')?.trim();
+      if (/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(legacyId || '')) {
+        try {
+          entity = await getEntityById('team', legacyId);
+          slug = entity.slug;
+        } catch (error) {
+          if (error?.message !== 'Listado no encontrado') throw error;
+        }
+      }
+    }
     if (!slug) { renderTeamNotFound(); return; }
-    await initTeamListing(slug);
+    await initTeamListing(slug, entity);
     return;
   }
   if (!slug) throw new Error('Falta slug');

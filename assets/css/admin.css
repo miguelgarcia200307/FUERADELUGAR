@@ -328,11 +328,15 @@ button.stat-card:hover { border-color: #a9c9b4; box-shadow: var(--admin-shadow);
 .photo-help { margin: .2rem 0 .65rem; color: var(--admin-muted); font-size: .74rem; }
 .photo-dropzone { border: 1.5px dashed #95b59f; border-radius: 12px; background: #f8fcf9; transition: border-color .16s,background .16s; }
 .photo-dropzone.is-dragging { border-color: var(--admin-primary); background: #eaf7ef; }
+.photo-dropzone.is-busy { border-color: #6fa780; background: #f1f9f3; }
 .photo-dropzone:focus-within { border-color: var(--admin-primary); box-shadow: 0 0 0 3px rgba(22,138,76,.14); }
 .photo-dropzone > label { min-height: 168px; display: flex; flex-direction: column; gap: .42rem; align-items: center; justify-content: center; padding: 1rem; text-align: center; cursor: pointer; }
 .photo-dropzone > label > strong { color: var(--admin-primary-dark); font-size: .95rem; }
 .photo-dropzone > label > span:not(.small-btn),.photo-dropzone small { color: var(--admin-muted); font-size: .72rem; }
 .photo-dropzone .small-btn { margin-top: .2rem; pointer-events: none; }
+.photo-progress { min-height: 1.15rem; margin: .55rem 0 0; color: var(--admin-primary-dark); font-size: .72rem; font-weight: 700; }
+.photo-progress:empty { min-height: 0; margin-top: 0; }
+.photo-progress--error { color: var(--admin-danger); }
 .photo-gallery { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .7rem; margin-top: .55rem; }
 .photo-gallery__empty { grid-column: 1/-1; min-height: 110px; display: grid; place-content: center; gap: .25rem; padding: 1rem; border: 1px solid var(--admin-border); border-radius: 10px; color: var(--admin-muted); text-align: center; }
 .photo-gallery__empty strong { color: var(--admin-text); font-size: .8rem; }
@@ -340,6 +344,8 @@ button.stat-card:hover { border-color: #a9c9b4; box-shadow: var(--admin-shadow);
 .photo-card { min-width: 0; overflow: hidden; border: 1px solid var(--admin-border); border-radius: 11px; background: white; }
 .photo-card__media { position: relative; aspect-ratio: 4/3; display: grid; place-items: center; overflow: hidden; background: var(--surface-2); }
 .photo-card__media img { width: 100%; height: 100%; object-fit: contain; }
+.photo-card--busy .photo-card__media img { opacity: .62; }
+.photo-card__spinner { position: absolute; width: 28px; height: 28px; border-width: 3px; }
 .photo-card__destination,.photo-card__primary { position: absolute; top: .4rem; left: .4rem; max-width: calc(100% - .8rem); overflow: hidden; padding: .25rem .42rem; border-radius: 999px; color: white; background: rgba(10,24,14,.76); font-size: .62rem; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
 .photo-card__primary { top: auto; bottom: .4rem; color: #0b4f2c; background: rgba(229,250,236,.94); }
 .photo-card__body { display: grid; gap: .5rem; padding: .65rem; }
@@ -347,9 +353,12 @@ button.stat-card:hover { border-color: #a9c9b4; box-shadow: var(--admin-shadow);
 .photo-card__body label { font-size: .68rem; }
 .photo-card__body select { min-height: 38px; margin-top: .2rem; padding: .4rem .5rem; }
 .photo-card__status { color: var(--admin-muted); font-size: .68rem; }
+.photo-card__status--preparing,.photo-card__status--optimizing { color: var(--admin-warning); font-weight: 750; }
+.photo-card__status--ready { color: var(--admin-primary-dark); font-weight: 750; }
 .photo-card__status--uploading { color: var(--admin-warning); }
 .photo-card__status--loaded { color: var(--admin-success); }
 .photo-card__status--error { color: var(--admin-danger); font-weight: 750; }
+.photo-card__detail { margin-top: -.3rem; color: var(--admin-muted); font-size: .64rem; line-height: 1.35; }
 .photo-card__actions { display: flex; flex-wrap: wrap; gap: .35rem; }
 .photo-card__actions button { min-height: 44px; padding: .38rem .5rem; border: 1px solid var(--admin-border); border-radius: 7px; color: var(--admin-text); background: #f7f9f7; cursor: pointer; font-size: .65rem; font-weight: 750; }
 .photo-card__actions button:last-child { color: var(--admin-danger); border-color: #efcccc; background: #fff8f8; }

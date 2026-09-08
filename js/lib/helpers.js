@@ -144,12 +144,13 @@ export async function sharePage({ title = document.title, text = '', url = locat
 export function setButtonLoading(button, loading, label = 'Procesando…') {
   if (!button) return;
   if (loading) {
-    button.dataset.originalText = button.textContent;
+    if (!button.dataset.originalText) button.dataset.originalText = button.textContent;
     button.disabled = true;
     button.innerHTML = `<span class="spinner" aria-hidden="true"></span>${escapeHtml(label)}`;
   } else {
     button.disabled = false;
     button.textContent = button.dataset.originalText || 'Listo';
+    delete button.dataset.originalText;
   }
 }
 

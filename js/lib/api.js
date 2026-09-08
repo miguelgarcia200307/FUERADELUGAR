@@ -17,6 +17,17 @@ function unwrap({ data, error }) {
   return data;
 }
 
+export function storageUploadMessage(error) {
+  const message = String(error?.message || error?.error || '').toLowerCase();
+  const status = Number(error?.statusCode || error?.status || 0);
+  if (error?.name === 'AbortError' || error?.name === 'TimeoutError' || /failed to fetch|network|timeout|aborted|fetch/.test(message)) return 'La conexión se interrumpió durante la carga. Revisa tu internet y pulsa Reintentar.';
+  if (status === 401 || status === 403 || /unauthorized|forbidden|row-level security|permission|jwt/.test(message)) return 'Tu sesión no tiene permiso para subir imágenes. Inicia sesión nuevamente e inténtalo otra vez.';
+  if (status === 413 || /too large|maximum allowed|file size|payload/.test(message)) return 'La fotografía supera el límite de Storage incluso después de optimizarse.';
+  if (status === 404 || /bucket not found|not found/.test(message)) return 'El almacenamiento de fotografías no está disponible en este momento.';
+  if (status >= 500 || /storage|database/.test(message)) return 'El almacenamiento no respondió correctamente. Espera un momento y pulsa Reintentar.';
+  return 'No pudimos subir esta fotografía. Puedes pulsar Reintentar sin volver a seleccionarla.';
+}
+
 export async function getSettings() {
   return unwrap(await supabase.from('site_settings').select('*').eq('id', 1).single());
 }
@@ -360,17 +371,17 @@ export async function syncProductImages(productId, images, colorIds, onProgress 
     } catch (error) { failures.push({ image, error }); }
   }
   for (const image of active.filter(item => !item.id && item.file)) {
-    image.status = 'uploading'; onProgress(image);
+    image.status = 'uploading'; image.statusDetail = 'Enviando a almacenamiento seguro…'; onProgress(image);
     let url = '';
     try {
       url = await uploadImage('product-images', image.file, productId);
       const row = unwrap(await supabase.from('product_images').insert({ product_id: productId, color_id: image.colorKey ? colorIds.get(image.colorKey) || null : null, url, alt_text: image.file.name, is_primary: false, sort_order: image.sortOrder }).select().single());
-      Object.assign(image, row, { file: null, url: row.url || url, status: 'loaded' });
+      Object.assign(image, row, { file: null, url: row.url || url, status: 'loaded', statusDetail: 'Guardada correctamente', error: null, errorStage: '' });
       onProgress(image);
     } catch (error) {
       if (url) try { await removeUploadedProductImage(url); } catch (cleanupError) { console.error('No se pudo limpiar el archivo incompleto:', cleanupError); }
       console.error(`No se pudo cargar ${image.name || 'la fotografía'}:`, error);
-      image.status = 'error'; image.error = error; failures.push({ image, error }); onProgress(image);
+      image.status = 'error'; image.error = error; image.errorStage = 'upload'; image.statusDetail = storageUploadMessage(error); failures.push({ image, error }); onProgress(image);
     }
   }
   const persisted = active.filter(image => image.id);
@@ -391,14 +402,18 @@ export async function syncProductImages(productId, images, colorIds, onProgress 
   if (failures.length) {
     const error = new Error(`${failures.length} fotografía${failures.length === 1 ? '' : 's'} no se pudieron guardar.`);
     error.imageFailures = failures;
+    error.userMessage = storageUploadMessage(failures[0].error);
     throw error;
   }
   return persisted;
 }
 
 export async function uploadImage(bucket, file, folder = 'uploads') {
-  const extension = (file.name.split('.').pop() || 'jpg').toLowerCase().replace('jpeg', 'jpg');
-  const path = `${folder}/${crypto.randomUUID()}.${extension}`;
+  const extensionByMime = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/avif': 'avif', 'image/svg+xml': 'svg' };
+  const namedExtension = (file.name.split('.').pop() || 'jpg').toLowerCase().replace('jpeg', 'jpg').replace(/[^a-z0-9]/g, '');
+  const extension = extensionByMime[file.type] || namedExtension || 'jpg';
+  const safeFolder = String(folder || 'uploads').split('/').filter(part => part && part !== '.' && part !== '..').map(part => part.replace(/[^a-zA-Z0-9_-]/g, '')).filter(Boolean).join('/') || 'uploads';
+  const path = `${safeFolder}/${crypto.randomUUID()}.${extension}`;
   unwrap(await supabase.storage.from(bucket).upload(path, file, { cacheControl: '3600', upsert: false }));
   return supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
 }

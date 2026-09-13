@@ -1,6 +1,6 @@
 let openModalCount = 0;
 
-export function openModal({ title, content, onClose, className = '', description = '', trigger = null } = {}) {
+export function openModal({ title, content, onClose, className = '', description = '', trigger = null, headerIcon = '', initialFocus = '' } = {}) {
   const root = document.querySelector('#modal-root') || document.body;
   const previousFocus = trigger || document.activeElement;
   const backdrop = document.createElement('div');
@@ -8,9 +8,10 @@ export function openModal({ title, content, onClose, className = '', description
   if (className.includes('modal--customizer')) backdrop.classList.add('modal-backdrop--customizer');
   if (className.includes('modal--lightbox')) backdrop.classList.add('modal-backdrop--lightbox');
   if (className.includes('modal--confirm')) backdrop.classList.add('modal-backdrop--confirm');
+  if (className.includes('modal--cart-remove')) backdrop.classList.add('modal-backdrop--cart-remove');
   const modalId = `modal-title-${crypto.randomUUID()}`;
   const descriptionId = `modal-description-${crypto.randomUUID()}`;
-  backdrop.innerHTML = `<section class="modal ${className}" role="dialog" aria-modal="true" aria-labelledby="${modalId}" ${description ? `aria-describedby="${descriptionId}"` : ''}><header class="modal__head"><div><h2 id="${modalId}"></h2>${description ? `<p id="${descriptionId}" class="sr-only"></p>` : ''}</div><button class="modal__close" type="button" aria-label="Cerrar">×</button></header><div class="modal__content"></div></section>`;
+  backdrop.innerHTML = `<section class="modal ${className}" role="dialog" aria-modal="true" aria-labelledby="${modalId}" ${description ? `aria-describedby="${descriptionId}"` : ''}><header class="modal__head"><div class="modal__title">${headerIcon ? `<span class="modal__title-icon" aria-hidden="true">${headerIcon}</span>` : ''}<div><h2 id="${modalId}"></h2>${description ? `<p id="${descriptionId}" class="sr-only"></p>` : ''}</div></div><button class="modal__close" type="button" aria-label="Cerrar diálogo">×</button></header><div class="modal__content"></div></section>`;
   backdrop.querySelector(`#${modalId}`).textContent = title || '';
   if (description) backdrop.querySelector(`#${descriptionId}`).textContent = description;
   const contentRoot = backdrop.querySelector('.modal__content');
@@ -18,17 +19,23 @@ export function openModal({ title, content, onClose, className = '', description
   else if (content) contentRoot.append(content);
   let keyHandler;
   let closed = false;
-  const close = () => {
-    if (closed) return;
+  let dismissible = true;
+  const close = (force = false) => {
+    if (closed || (!dismissible && !force)) return;
     closed = true;
-    backdrop.remove();
-    openModalCount = Math.max(0, openModalCount - 1);
-    if (!openModalCount) document.body.classList.remove('no-scroll');
     document.removeEventListener('keydown', keyHandler);
-    onClose?.();
-    if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus({ preventScroll: true });
+    backdrop.classList.add('is-closing');
+    const finalize = () => {
+      backdrop.remove();
+      openModalCount = Math.max(0, openModalCount - 1);
+      if (!openModalCount) document.body.classList.remove('no-scroll');
+      onClose?.();
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus({ preventScroll: true });
+    };
+    if (globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches) finalize();
+    else setTimeout(finalize, 140);
   };
-  backdrop.querySelector('.modal__close').addEventListener('click', close);
+  backdrop.querySelector('.modal__close').addEventListener('click', () => close());
   backdrop.addEventListener('click', event => { if (event.target === backdrop) close(); });
   keyHandler = event => {
     if (event.key === 'Escape') { event.preventDefault(); close(); return; }
@@ -45,8 +52,17 @@ export function openModal({ title, content, onClose, className = '', description
   root.append(backdrop);
   openModalCount += 1;
   document.body.classList.add('no-scroll');
-  backdrop.querySelector('.modal__close').focus();
-  return { element: backdrop, contentRoot, close };
+  const firstFocus = initialFocus ? backdrop.querySelector(initialFocus) : null;
+  (firstFocus || backdrop.querySelector('.modal__close')).focus();
+  return {
+    element: backdrop,
+    contentRoot,
+    close,
+    setDismissible(value) {
+      dismissible = Boolean(value);
+      backdrop.querySelector('.modal__close').disabled = !dismissible;
+    }
+  };
 }
 
 export function confirmAction(message, title = 'Confirmar', { confirmLabel = 'Confirmar', cancelLabel = 'Cancelar', trigger = null, tone = 'danger' } = {}) {
@@ -59,7 +75,7 @@ export function confirmAction(message, title = 'Confirmar', { confirmLabel = 'Co
     wrapper.querySelector('p').textContent = message;
     wrapper.querySelector('[data-confirm]').textContent = confirmLabel;
     wrapper.querySelector('[data-cancel]').textContent = cancelLabel;
-    const modal = openModal({ title, content: wrapper, className: 'modal--confirm', trigger, onClose: () => resolve(false) });
+    const modal = openModal({ title, content: wrapper, className: 'modal--confirm', initialFocus: '[data-cancel]', trigger, onClose: () => resolve(false) });
     wrapper.querySelector('[data-confirm]').addEventListener('click', () => { resolve(true); modal.close(); });
     wrapper.querySelector('[data-cancel]').addEventListener('click', () => { resolve(false); modal.close(); });
   });

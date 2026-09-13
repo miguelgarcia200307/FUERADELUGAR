@@ -147,12 +147,7 @@ function bindCartEvents() {
     const item = getCart().find(candidate => candidate.line_id === row.dataset.line);
     if (!item) return;
     if (action === 'remove') {
-      if (await confirmAction('¿Quieres quitar este producto del carrito?', 'Eliminar producto')) {
-        removeCartLine(item.line_id);
-        lineStatus.delete(item.line_id);
-        toast('Producto eliminado');
-        renderCart();
-      }
+      await openRemoveCartDialog(item, event.target.closest('[data-action="remove"]'));
       return;
     }
     if (action === 'edit') {
@@ -191,6 +186,75 @@ function bindCartEvents() {
       lineStatus.clear();
       toast('Carrito vacío');
       renderCart();
+    }
+  });
+}
+
+function removeDialogProductMarkup(item) {
+  const custom = item.personalization;
+  const customValue = custom && [custom.name, custom.number].filter(Boolean).join(' · ');
+  const details = [
+    item.color && `<span><b>Color</b>${escapeHtml(item.color)}</span>`,
+    item.size && `<span><b>Talla</b>${escapeHtml(item.size)}</span>`,
+    customValue && `<span><b>Personalización</b>${escapeHtml(customValue)}</span>`,
+    `<span><b>Cantidad</b>${Number(item.quantity) || 1}</span>`
+  ].filter(Boolean).join('');
+  return `<div class="cart-remove-dialog__product">
+    <span class="cart-remove-dialog__thumb"><img src="${escapeHtml(item.image)}" alt="" loading="eager"></span>
+    <div><strong>${escapeHtml(item.name)}</strong><div class="cart-remove-dialog__details">${details}</div></div>
+  </div>`;
+}
+
+function openRemoveCartDialog(item, trigger) {
+  const content = document.createElement('div');
+  content.className = 'cart-remove-dialog';
+  content.innerHTML = `${removeDialogProductMarkup(item)}
+    <div class="cart-remove-dialog__copy"><p>¿Quieres quitar este producto del carrito?</p><small>Podrás agregarlo nuevamente cuando quieras.</small></div>
+    <p class="cart-remove-dialog__error" role="alert" tabindex="-1" hidden></p>
+    <div class="cart-remove-dialog__actions">
+      <button class="btn btn--ghost" data-cancel-remove type="button">Cancelar</button>
+      <button class="btn btn--danger" data-confirm-remove type="button">Quitar</button>
+    </div>`;
+  const warningIcon = '<svg viewBox="0 0 24 24" focusable="false"><path d="M9 4h6m-8 3h10m-9 0 .7 12h6.6L16 7M10 10v6m4-6v6"></path></svg>';
+  const modal = openModal({
+    title: 'Quitar producto del carrito',
+    description: '¿Quieres quitar este producto del carrito? Podrás agregarlo nuevamente cuando quieras.',
+    content,
+    className: 'modal--cart-remove',
+    headerIcon: warningIcon,
+    initialFocus: '[data-cancel-remove]',
+    trigger
+  });
+  const cancelButton = content.querySelector('[data-cancel-remove]');
+  const confirmButton = content.querySelector('[data-confirm-remove]');
+  const errorRoot = content.querySelector('.cart-remove-dialog__error');
+  let removing = false;
+  cancelButton.addEventListener('click', () => { if (!removing) modal.close(); });
+  confirmButton.addEventListener('click', async () => {
+    if (removing) return;
+    removing = true;
+    modal.setDismissible(false);
+    errorRoot.hidden = true;
+    cancelButton.disabled = true;
+    confirmButton.disabled = true;
+    confirmButton.innerHTML = '<span class="spinner" aria-hidden="true"></span>Quitando…';
+    try {
+      await Promise.resolve().then(() => removeCartLine(item.line_id));
+      if (getCart().some(candidate => candidate.line_id === item.line_id)) throw new Error('La línea continúa en el carrito.');
+      lineStatus.delete(item.line_id);
+      renderCart();
+      toast('Producto quitado del carrito');
+      modal.close(true);
+    } catch (error) {
+      console.error('No se pudo quitar el producto del carrito:', error);
+      removing = false;
+      modal.setDismissible(true);
+      cancelButton.disabled = false;
+      confirmButton.disabled = false;
+      confirmButton.textContent = 'Quitar';
+      errorRoot.textContent = 'No pudimos quitar el producto. Intenta nuevamente.';
+      errorRoot.hidden = false;
+      errorRoot.focus();
     }
   });
 }

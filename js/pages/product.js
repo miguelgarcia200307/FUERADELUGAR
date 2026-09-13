@@ -4,6 +4,7 @@ import { createProductCustomizer } from '../components/product-customizer.js';
 import { openModal } from '../components/modal.js';
 import { toast } from '../components/toast.js';
 import { $, $$, currentPrice, discountPercent, escapeHtml, formatMoney, getCategoryUrl, isPromoActive, localAsset, params, productImage, routeSlug, sharePage, setButtonLoading } from '../lib/helpers.js';
+import { imageLoadStatus, loadImage, observeImageElement, scheduleImagePreload } from '../lib/image-loader.js';
 import { addCartItem, getCart, isFavorite, toggleFavorite, updateCartLine } from '../lib/store.js';
 
 const icons = {
@@ -49,10 +50,19 @@ export async function initProduct() {
   let quantity = Math.max(1, Number(editing?.quantity || 1));
   let galleryImages = [];
   let galleryIndex = 0;
+  let galleryRequestId = 0;
+  let thumbnailObserver = null;
+  let cancelSecondaryPreload = () => {};
+  let cancelAlternatePreload = () => {};
   let mainCtaSeen = false;
+  const fallbackProductImage = localAsset('assets/images/product-white.svg');
+  const initialGalleryImages = imagesForColor(selectedColor);
+  const initialGalleryImage = initialGalleryImages[0] || { url: fallbackProductImage, alt_text: product.name };
+  const initialImageUrl = localAsset(initialGalleryImage.url);
+  const initialColorId = selectedColor?.id || null;
 
   function variantFor(colorId, sizeId) {
-    return (product.product_variants || []).find(variant => variant.color_id === colorId && variant.size_id === sizeId && variant.active);
+    return (product.product_variants || []).find(variant => (variant.color_id || null) === (colorId || null) && variant.size_id === sizeId && variant.active);
   }
 
   function firstAvailableSize() {
@@ -68,7 +78,7 @@ export async function initProduct() {
   root.innerHTML = `<section class="gallery" aria-label="Galería del producto">
       <div class="gallery__main">
         <button id="gallery-zoom" class="gallery__zoom-target" type="button" aria-label="Ampliar imagen de ${escapeHtml(product.name)}">
-          <img id="main-product-image" src="${escapeHtml(productImage(product, selectedColor?.id))}" alt="${escapeHtml(product.name)}" fetchpriority="high">
+          <img id="main-product-image" src="${escapeHtml(initialImageUrl)}" alt="${escapeHtml(initialGalleryImage.alt_text || product.name)}" loading="eager" decoding="async" fetchpriority="high" width="800" height="1000">
           <span class="gallery__zoom-hint">${icons.zoom}<span>Ampliar</span></span>
         </button>
         <div class="gallery__actions">
@@ -112,32 +122,43 @@ export async function initProduct() {
     return `<button class="swatch ${color.hex_code ? '' : 'swatch--name-only'} ${active ? 'active' : ''}"${swatch} data-color="${color.id}" type="button" aria-pressed="${active}"><span>${escapeHtml(color.name)}</span></button>`;
   }
 
-  function filteredImages() {
+  function imagesForColor(color) {
     const all = (product.product_images || []).slice().sort((a, b) => Number(b.is_primary) - Number(a.is_primary) || a.sort_order - b.sort_order);
-    const byColor = all.filter(image => image.color_id === selectedColor?.id);
+    const byColor = all.filter(image => image.color_id === color?.id);
     const general = all.filter(image => !image.color_id);
-    return selectedColor && byColor.length ? [...byColor, ...general] : general.length ? general : all;
+    const selected = color ? (byColor.length ? [...byColor, ...general] : general) : (general.length ? general : all);
+    const seen = new Set();
+    return selected.filter(image => {
+      const url = localAsset(image.url);
+      if (!url || seen.has(url)) return false;
+      seen.add(url);
+      return true;
+    });
   }
 
   function updateGallery() {
-    galleryImages = filteredImages();
-    if (!galleryImages.length) galleryImages = [{ url: productImage(product, selectedColor?.id), alt_text: product.name }];
+    galleryImages = imagesForColor(selectedColor);
+    if (!galleryImages.length) galleryImages = [{ url: fallbackProductImage, alt_text: product.name }];
     galleryIndex = 0;
     const track = $('#gallery-track');
-    track.innerHTML = galleryImages.map((image, index) => `<button class="gallery__thumb ${index === 0 ? 'active' : ''}" data-image="${index}" type="button" aria-label="Ver imagen ${index + 1} de ${galleryImages.length}" aria-current="${index === 0 ? 'true' : 'false'}"><img src="${escapeHtml(localAsset(image.url))}" alt="" loading="lazy"></button>`).join('');
+    thumbnailObserver?.disconnect();
+    cancelSecondaryPreload();
+    track.innerHTML = galleryImages.map((image, index) => {
+      const url = escapeHtml(localAsset(image.url));
+      const source = index === 0 ? `src="${url}"` : `data-src="${url}"`;
+      return `<button class="gallery__thumb ${index === 0 ? 'active' : ''}" data-image="${index}" type="button" aria-label="Ver imagen ${index + 1} de ${galleryImages.length}" aria-current="${index === 0 ? 'true' : 'false'}"><img ${source} alt="" loading="lazy" decoding="async" width="124" height="124"></button>`;
+    }).join('');
     track.hidden = galleryImages.length < 2;
-    showImage(0);
+    initializeProgressiveThumbnails();
+    const requestedColorId = selectedColor?.id || null;
+    showImage(0, { priority: 'high' }).then(shown => {
+      if (!shown || (selectedColor?.id || null) !== requestedColorId) return;
+      const secondaryUrls = galleryImages.slice(1, 3).map(image => localAsset(image.url));
+      cancelSecondaryPreload = scheduleImagePreload(secondaryUrls, { concurrency: 1, priority: 'low', delay: 1100, timeout: 2200 });
+    });
   }
 
-  function showImage(index) {
-    if (!galleryImages.length) return;
-    galleryIndex = (index + galleryImages.length) % galleryImages.length;
-    const image = galleryImages[galleryIndex];
-    const main = $('#main-product-image');
-    main.classList.remove('is-changing');
-    requestAnimationFrame(() => main.classList.add('is-changing'));
-    main.src = localAsset(image.url);
-    main.alt = image.alt_text || `${product.name}, imagen ${galleryIndex + 1}`;
+  function updateGalleryControls() {
     $('#gallery-count').textContent = `${galleryIndex + 1} / ${galleryImages.length}`;
     $$('.gallery__thumb', $('#gallery-track')).forEach((element, indexValue) => {
       const active = indexValue === galleryIndex;
@@ -146,24 +167,119 @@ export async function initProduct() {
     });
   }
 
+  function setGalleryBusy(busy) {
+    const gallery = $('.gallery__main');
+    gallery.classList.toggle('is-loading', busy);
+    gallery.setAttribute('aria-busy', String(busy));
+  }
+
+  function commitMainImage(url, alt, requestId) {
+    if (requestId !== galleryRequestId) return false;
+    const main = $('#main-product-image');
+    main.classList.remove('is-changing', 'image-fallback');
+    delete main.dataset.fallbackApplied;
+    main.src = url;
+    main.dataset.imageUrl = url;
+    main.alt = alt;
+    $('.gallery__main').classList.remove('is-error');
+    setGalleryBusy(false);
+    requestAnimationFrame(() => main.classList.add('is-changing'));
+    return true;
+  }
+
+  async function showImage(index, { priority = 'high' } = {}) {
+    if (!galleryImages.length) return false;
+    galleryIndex = (index + galleryImages.length) % galleryImages.length;
+    const image = galleryImages[galleryIndex];
+    const main = $('#main-product-image');
+    const url = localAsset(image.url);
+    const alt = image.alt_text || `${product.name}, imagen ${galleryIndex + 1}`;
+    const requestId = ++galleryRequestId;
+    updateGalleryControls();
+    if ((main.dataset.imageUrl === url || main.currentSrc === url) && main.complete && main.naturalWidth) {
+      main.dataset.imageUrl = url;
+      main.alt = alt;
+      setGalleryBusy(false);
+      return true;
+    }
+    if (imageLoadStatus(url) === 'loaded') return commitMainImage(url, alt, requestId);
+    setGalleryBusy(true);
+    try {
+      await loadImage(url, { priority, retry: true });
+      return commitMainImage(url, alt, requestId);
+    } catch {
+      if (requestId !== galleryRequestId) return false;
+      try { await loadImage(fallbackProductImage, { priority: 'high' }); } catch { /* Local fallback may already be cached. */ }
+      if (requestId !== galleryRequestId) return false;
+      main.src = fallbackProductImage;
+      main.dataset.imageUrl = fallbackProductImage;
+      main.alt = `Imagen no disponible de ${product.name}`;
+      main.classList.add('image-fallback');
+      $('.gallery__main').classList.add('is-error');
+      setGalleryBusy(false);
+      toast('No pudimos cargar esta fotografía.', 'error');
+      return false;
+    }
+  }
+
+  function initializeProgressiveThumbnails() {
+    const track = $('#gallery-track');
+    const loadThumbnail = async thumbnail => {
+      const url = thumbnail.dataset.src;
+      if (!url) return;
+      try {
+        await loadImage(url, { priority: 'low' });
+        if (!thumbnail.isConnected || thumbnail.dataset.src !== url) return;
+        thumbnail.src = url;
+      } catch {
+        if (!thumbnail.isConnected || thumbnail.dataset.src !== url) return;
+        thumbnail.src = fallbackProductImage;
+        thumbnail.classList.add('image-fallback');
+      } finally {
+        if (thumbnail.dataset.src === url) delete thumbnail.dataset.src;
+      }
+    };
+    const pending = $$('img[data-src]', track);
+    if (!pending.length) return;
+    if (!('IntersectionObserver' in window)) {
+      pending.slice(0, 3).forEach(loadThumbnail);
+      return;
+    }
+    thumbnailObserver = new IntersectionObserver(entries => entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      thumbnailObserver.unobserve(entry.target);
+      loadThumbnail(entry.target);
+    }), { root: track, rootMargin: '0px 100px', threshold: 0.01 });
+    pending.forEach(thumbnail => thumbnailObserver.observe(thumbnail));
+  }
+
   function openLightbox(trigger) {
     let index = galleryIndex;
     const wrapper = document.createElement('div');
     wrapper.className = `lightbox${galleryImages.length < 2 ? ' lightbox--single' : ''}`;
     wrapper.innerHTML = `<button class="lightbox__nav lightbox__nav--prev" type="button" aria-label="Imagen anterior">‹</button><figure><img alt=""><figcaption></figcaption></figure><button class="lightbox__nav lightbox__nav--next" type="button" aria-label="Imagen siguiente">›</button>`;
     let keyHandler;
-    openModal({ title: product.name, content: wrapper, className: 'modal--lightbox', trigger, onClose: () => document.removeEventListener('keydown', keyHandler) });
-    const draw = () => {
+    let lightboxRequestId = 0;
+    openModal({ title: product.name, content: wrapper, className: 'modal--lightbox', trigger, onClose: () => { lightboxRequestId += 1; document.removeEventListener('keydown', keyHandler); } });
+    const draw = async () => {
       const image = galleryImages[index];
-      wrapper.querySelector('img').src = localAsset(image.url);
-      wrapper.querySelector('img').alt = image.alt_text || product.name;
+      const url = localAsset(image.url);
+      const requestId = ++lightboxRequestId;
+      wrapper.classList.add('is-loading');
+      wrapper.setAttribute('aria-busy', 'true');
       wrapper.querySelector('figcaption').textContent = `${index + 1} / ${galleryImages.length}`;
       wrapper.querySelectorAll('.lightbox__nav').forEach(button => { button.hidden = galleryImages.length < 2; });
+      try { await loadImage(url, { priority: 'high', retry: true }); }
+      catch { if (requestId === lightboxRequestId) await loadImage(fallbackProductImage).catch(() => {}); }
+      if (requestId !== lightboxRequestId) return;
+      wrapper.querySelector('img').src = imageLoadStatus(url) === 'loaded' ? url : fallbackProductImage;
+      wrapper.querySelector('img').alt = image.alt_text || product.name;
+      wrapper.classList.remove('is-loading');
+      wrapper.setAttribute('aria-busy', 'false');
     };
     wrapper.addEventListener('click', event => {
-      if (event.target.closest('.lightbox__nav--prev')) index = (index - 1 + galleryImages.length) % galleryImages.length;
-      if (event.target.closest('.lightbox__nav--next')) index = (index + 1) % galleryImages.length;
-      draw();
+      if (event.target.closest('.lightbox__nav--prev')) { index = (index - 1 + galleryImages.length) % galleryImages.length; draw(); }
+      if (event.target.closest('.lightbox__nav--next')) { index = (index + 1) % galleryImages.length; draw(); }
     });
     keyHandler = event => {
       if (event.key === 'ArrowLeft') { index = (index - 1 + galleryImages.length) % galleryImages.length; draw(); }
@@ -408,7 +524,21 @@ export async function initProduct() {
     observer.observe($('#add-cart'));
   }
 
+  const initialImageLoad = observeImageElement($('#main-product-image'), initialImageUrl).catch(() => {});
   updateGallery();
+  initialImageLoad.finally(() => {
+    const alternatePrimaryUrls = colors
+      .filter(color => color.id !== initialColorId)
+      .map(color => imagesForColor(color)[0])
+      .filter(Boolean)
+      .map(image => localAsset(image.url));
+    cancelAlternatePreload = scheduleImagePreload(alternatePrimaryUrls, { concurrency: 2, priority: 'low', delay: 800, timeout: 2000 });
+  });
+  window.addEventListener('pagehide', () => {
+    thumbnailObserver?.disconnect();
+    cancelSecondaryPreload();
+    cancelAlternatePreload();
+  }, { once: true });
   renderSizes();
   renderPersonalizationCard();
   updateStock();

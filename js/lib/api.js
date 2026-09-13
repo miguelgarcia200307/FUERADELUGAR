@@ -422,7 +422,7 @@ export async function uploadImage(bucket, file, folder = 'uploads') {
   const extension = extensionByMime[file.type] || namedExtension || 'jpg';
   const safeFolder = String(folder || 'uploads').split('/').filter(part => part && part !== '.' && part !== '..').map(part => part.replace(/[^a-zA-Z0-9_-]/g, '')).filter(Boolean).join('/') || 'uploads';
   const path = `${safeFolder}/${crypto.randomUUID()}.${extension}`;
-  unwrap(await supabase.storage.from(bucket).upload(path, file, { cacheControl: '3600', upsert: false }));
+  unwrap(await supabase.storage.from(bucket).upload(path, file, { cacheControl: '31536000', upsert: false }));
   return supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
 }
 

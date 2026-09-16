@@ -1586,3 +1586,27 @@ body[data-listing-type="team"] .whatsapp-float { right: max(.35rem,env(safe-area
   .team-tool-button,.team-sort-control,.team-product-filters { transition: none; }
   .team-tool-button:active { transform: none; }
 }
+.home-banner-section { margin-top: .3rem; margin-bottom: .65rem; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.home-banner-section[hidden] { display: none; }
+.home-banner { position: relative; overflow: hidden; width: 100%; aspect-ratio: 1.8; border-radius: var(--radius-md); background: #edf2ed; }
+.home-banner__track { display: flex; height: 100%; transition: transform .46s ease; will-change: transform; }
+.home-banner__slide { min-width: 100%; height: 100%; }
+.home-banner__image,.home-banner__image picture,.home-banner__image img { display: block; width: 100%; height: 100%; }
+.home-banner__image img { object-fit: cover; object-position: center; }
+.home-banner__dots { position: absolute; z-index: 2; inset-inline: 0; bottom: .35rem; display: flex; justify-content: center; gap: .1rem; pointer-events: none; }
+.home-banner__dots button { position: relative; width: 44px; height: 44px; padding: 0; border: 0; background: transparent; pointer-events: auto; cursor: pointer; }
+.home-banner__dots button::after { content: ''; display: block; width: 10px; height: 10px; margin: auto; border: 2px solid white; border-radius: 50%; background: #243a2b; box-shadow: 0 1px 4px #0009; }
+.home-banner__dots button[aria-current]::after { width: 17px; border-color: white; border-radius: 8px; background: var(--primary); }
+.home-banner__arrow { position: absolute; z-index: 2; top: 50%; width: 44px; height: 44px; transform: translateY(-50%); border: 0; border-radius: 50%; background: #102b1ec9; color: white; font-size: 2rem; line-height: 1; cursor: pointer; }
+.home-banner__arrow--prev { left: .5rem; }
+.home-banner__arrow--next { right: .5rem; }
+.home-banner button:focus-visible,.home-banner a:focus-visible { outline: 3px solid var(--primary); outline-offset: -4px; }
+@media (max-width: 767px) { .home-banner__arrow { display: none; } }
+@media (min-width: 768px) {
+  .home-banner { aspect-ratio: 3; border-radius: var(--radius-lg); }
+  .home-banner-section { margin-top: .45rem; margin-bottom: 1rem; }
+  .home-banner__arrow { opacity: 0; transition: opacity .2s; }
+  .home-banner:hover .home-banner__arrow,.home-banner:focus-within .home-banner__arrow { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) { .home-banner__track { transition-duration: .01ms; } }

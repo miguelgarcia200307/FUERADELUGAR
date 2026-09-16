@@ -162,24 +162,7 @@ function outputName(name, extension) {
   return `${clean}.${extension}`;
 }
 
-async function decodeImage(file, info, resizeScale, signal) {
-  abortIfNeeded(signal);
-  if (typeof createImageBitmap === 'function') {
-    const options = { imageOrientation: 'from-image', premultiplyAlpha: 'default', colorSpaceConversion: 'default' };
-    if (resizeScale < 1 && info.width && info.height) {
-      options.resizeWidth = Math.max(1, Math.round(info.width * resizeScale));
-      options.resizeHeight = Math.max(1, Math.round(info.height * resizeScale));
-      options.resizeQuality = 'high';
-    }
-    try {
-      const bitmap = await createImageBitmap(file, options);
-      abortIfNeeded(signal);
-      return { source: bitmap, width: bitmap.width, height: bitmap.height, close: () => bitmap.close() };
-    } catch (error) {
-      if (info.kind === 'heic' || info.kind === 'heif') throw new ImageProcessingError('heic-unsupported', 'Este navegador no puede convertir fotografías HEIC o HEIF.', error);
-      throw new ImageProcessingError('corrupt', 'No se pudo decodificar la fotografía.', error);
-    }
-  }
+async function decodeWithImageElement(file, info, signal) {
   const url = URL.createObjectURL(file);
   try {
     const image = new Image();
@@ -187,13 +170,128 @@ async function decodeImage(file, info, resizeScale, signal) {
     image.src = url;
     await image.decode();
     abortIfNeeded(signal);
-    return { source: image, width: image.naturalWidth, height: image.naturalHeight, close: () => {} };
+    return { source: image, width: image.naturalWidth, height: image.naturalHeight, decoder: 'image', close: () => {} };
   } catch (error) {
     if (info.kind === 'heic' || info.kind === 'heif') throw new ImageProcessingError('heic-unsupported', 'Este navegador no puede convertir fotografías HEIC o HEIF.', error);
     throw new ImageProcessingError('corrupt', 'No se pudo decodificar la fotografía.', error);
   } finally {
     URL.revokeObjectURL(url);
   }
+}
+
+async function decodeImage(file, info, signal) {
+  abortIfNeeded(signal);
+  if (typeof createImageBitmap === 'function') {
+    try {
+      // Resizing and EXIF orientation are intentionally separate operations. Some
+      // engines apply the physical resize dimensions after rotating the bitmap,
+      // which permanently stretches portrait phone photos.
+      const bitmap = await createImageBitmap(file, {
+        imageOrientation: 'from-image',
+        premultiplyAlpha: 'default',
+        colorSpaceConversion: 'default'
+      });
+      if (signal?.aborted) bitmap.close();
+      abortIfNeeded(signal);
+      return { source: bitmap, width: bitmap.width, height: bitmap.height, decoder: 'bitmap', close: () => bitmap.close() };
+    } catch (error) {
+      abortIfNeeded(signal);
+    }
+  }
+  return decodeWithImageElement(file, info, signal);
+}
+
+const swapsAxes = orientation => orientation >= 5 && orientation <= 8;
+const orientedDimensions = (width, height, orientation) => swapsAxes(orientation)
+  ? { width: height, height: width }
+  : { width, height };
+const ratioDifference = (actual, expected) => expected > 0 ? Math.abs(actual - expected) / expected : Infinity;
+const dimensionsHaveRatio = (width, height, expected) => width > 0 && height > 0 && ratioDifference(width / height, expected) <= 0.005;
+
+let orientationProbe;
+async function decoderAppliesExifOrientation(decoder) {
+  const key = decoder === 'bitmap' ? 'bitmap' : 'image';
+  orientationProbe ||= {};
+  if (orientationProbe[key]) return orientationProbe[key];
+  orientationProbe[key] = (async () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 4;
+    canvas.height = 2;
+    const context = canvas.getContext('2d');
+    context.fillStyle = '#f00';
+    context.fillRect(0, 0, 2, 2);
+    context.fillStyle = '#00f';
+    context.fillRect(2, 0, 2, 2);
+    const jpeg = await canvasBlob(canvas, 'image/jpeg', 0.9);
+    canvas.width = canvas.height = 0;
+    const source = new Uint8Array(await jpeg.arrayBuffer());
+    const exif = Uint8Array.from([0xff, 0xe1, 0x00, 0x22, 0x45, 0x78, 0x69, 0x66, 0, 0, 0x49, 0x49, 0x2a, 0, 8, 0, 0, 0, 1, 0, 0x12, 1, 3, 0, 1, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0]);
+    const bytes = new Uint8Array(source.length + exif.length);
+    bytes.set(source.subarray(0, 2));
+    bytes.set(exif, 2);
+    bytes.set(source.subarray(2), 2 + exif.length);
+    const fixture = new Blob([bytes], { type: 'image/jpeg' });
+    if (key === 'bitmap') {
+      const bitmap = await createImageBitmap(fixture, { imageOrientation: 'from-image' });
+      const applied = bitmap.width === 2 && bitmap.height === 4;
+      bitmap.close();
+      return applied;
+    }
+    const decoded = await decodeWithImageElement(fixture, { kind: 'jpeg' });
+    const applied = decoded.width === 2 && decoded.height === 4;
+    decoded.close();
+    return applied;
+  })().catch(() => {
+    // Modern decoders honor EXIF. If only the isolated probe fails, avoid a
+    // destructive second transform; dimension checks still detect swapped axes.
+    return true;
+  });
+  return orientationProbe[key];
+}
+
+async function orientationState(decoded, info) {
+  const orientation = info.orientation >= 1 && info.orientation <= 8 ? info.orientation : 1;
+  const rawWidth = info.width || decoded.width;
+  const rawHeight = info.height || decoded.height;
+  const visual = orientedDimensions(rawWidth, rawHeight, orientation);
+  if (orientation === 1) return { orientation, alreadyApplied: true, visualWidth: decoded.width, visualHeight: decoded.height };
+
+  const rawRatio = rawWidth / rawHeight;
+  const visualRatio = visual.width / visual.height;
+  let alreadyApplied;
+  if (swapsAxes(orientation) && ratioDifference(rawRatio, visualRatio) > 0.005) {
+    if (dimensionsHaveRatio(decoded.width, decoded.height, visualRatio)) alreadyApplied = true;
+    else if (dimensionsHaveRatio(decoded.width, decoded.height, rawRatio)) alreadyApplied = false;
+  }
+  if (alreadyApplied == null) alreadyApplied = await decoderAppliesExifOrientation(decoded.decoder);
+  return {
+    orientation,
+    alreadyApplied,
+    visualWidth: alreadyApplied ? decoded.width : orientedDimensions(decoded.width, decoded.height, orientation).width,
+    visualHeight: alreadyApplied ? decoded.height : orientedDimensions(decoded.width, decoded.height, orientation).height
+  };
+}
+
+function drawOriented(context, decoded, state, width, height) {
+  if (state.alreadyApplied || state.orientation === 1) {
+    context.drawImage(decoded.source, 0, 0, width, height);
+    return;
+  }
+  const sourceWidth = swapsAxes(state.orientation) ? height : width;
+  const sourceHeight = swapsAxes(state.orientation) ? width : height;
+  const transforms = {
+    2: [-1, 0, 0, 1, width, 0],
+    3: [-1, 0, 0, -1, width, height],
+    4: [1, 0, 0, -1, 0, height],
+    5: [0, 1, 1, 0, 0, 0],
+    6: [0, 1, -1, 0, width, 0],
+    7: [0, -1, -1, 0, width, height],
+    8: [0, -1, 1, 0, 0, height]
+  };
+  context.save();
+  context.setTransform(...transforms[state.orientation]);
+  context.drawImage(decoded.source, 0, 0, sourceWidth, sourceHeight);
+  context.restore();
 }
 
 const nextFrame = () => new Promise(resolve => setTimeout(resolve, 0));
@@ -239,74 +337,87 @@ export async function imageFingerprint(file) {
   return `${file.size}:${file.lastModified}:${[...first.subarray(0, 32)].join('.')}:${[...last.subarray(-32)].join('.')}`;
 }
 
-export async function prepareProductImage(file, { onStatus = () => {}, signal } = {}) {
+export async function prepareProductImage(file, { onStatus = () => {}, signal, limits = IMAGE_LIMITS, forceOptimize = false } = {}) {
   onStatus('preparing');
   const info = await inspectImageFile(file);
   abortIfNeeded(signal);
-  const knownLongEdge = Math.max(info.width || 0, info.height || 0);
   const mustBakeOrientation = info.orientation > 1;
   const mustConvert = info.kind === 'heic' || info.kind === 'heif';
-  const mustResize = knownLongEdge > IMAGE_LIMITS.maxLongEdge;
-  const mustCompress = file.size > IMAGE_LIMITS.targetBytes;
-  const resizeScale = mustResize ? IMAGE_LIMITS.maxLongEdge / knownLongEdge : 1;
-  const decoded = await decodeImage(file, info, resizeScale, signal);
+  const mustCompress = forceOptimize || file.size > limits.targetBytes;
+  const decoded = await decodeImage(file, info, signal);
   try {
     if (!decoded.width || !decoded.height) throw new ImageProcessingError('corrupt', 'La fotografía no contiene dimensiones válidas.');
     if (decoded.width * decoded.height > IMAGE_LIMITS.maxPixels) throw new ImageProcessingError('dimensions-too-large', 'La resolución de esta fotografía supera el límite seguro de procesamiento.');
+    const state = await orientationState(decoded, info);
+    const declaredVisual = info.width && info.height ? orientedDimensions(info.width, info.height, state.orientation) : null;
+    const originalWidth = declaredVisual?.width || state.visualWidth;
+    const originalHeight = declaredVisual?.height || state.visualHeight;
+    const visualLongEdge = Math.max(state.visualWidth, state.visualHeight);
+    const mustResize = visualLongEdge > limits.maxLongEdge;
     if (!mustBakeOrientation && !mustConvert && !mustResize && !mustCompress) {
       return {
         file: normalizedFile(file, info),
         optimized: false,
         originalBytes: file.size,
         finalBytes: file.size,
-        originalWidth: decoded.width,
-        originalHeight: decoded.height,
-        finalWidth: decoded.width,
-        finalHeight: decoded.height,
+        originalWidth,
+        originalHeight,
+        finalWidth: state.visualWidth,
+        finalHeight: state.visualHeight,
         mime: info.mime
       };
     }
 
     onStatus('optimizing');
-    const sourceWidth = decoded.width;
-    const sourceHeight = decoded.height;
-    const originalWidth = info.orientation >= 5 && info.orientation <= 8 ? info.height || sourceWidth : info.width || sourceWidth;
-    const originalHeight = info.orientation >= 5 && info.orientation <= 8 ? info.width || sourceHeight : info.height || sourceHeight;
     const outputMime = await supportsWebp() ? 'image/webp' : (info.hasTransparency ? 'image/png' : 'image/jpeg');
     const outputExtension = MIME_DETAILS[outputMime].extension;
     const qualities = outputMime === 'image/png' ? [undefined] : [0.88, 0.84, 0.80, 0.76, 0.72, 0.68];
-    let width = sourceWidth;
-    let height = sourceHeight;
+    const initialScale = Math.min(1, limits.maxLongEdge / visualLongEdge);
+    let width = Math.max(1, Math.round(state.visualWidth * initialScale));
+    let height = Math.max(1, Math.round(state.visualHeight * initialScale));
     let best = null;
     let canvas = document.createElement('canvas');
 
-    for (let resizeAttempt = 0; resizeAttempt < 5; resizeAttempt += 1) {
-      abortIfNeeded(signal);
-      canvas.width = width;
-      canvas.height = height;
-      const context = canvas.getContext('2d', { alpha: Boolean(info.hasTransparency), desynchronized: true });
-      if (!context) throw new ImageProcessingError('processing', 'No hay memoria suficiente para optimizar la fotografía.');
-      context.imageSmoothingEnabled = true;
-      context.imageSmoothingQuality = 'high';
-      context.drawImage(decoded.source, 0, 0, width, height);
-      for (const quality of qualities) {
+    try {
+      for (let resizeAttempt = 0; resizeAttempt < 5; resizeAttempt += 1) {
         abortIfNeeded(signal);
-        const blob = await canvasBlob(canvas, outputMime, quality);
-        if (!best || blob.size < best.blob.size) best = { blob, width, height, quality };
-        if (blob.size <= IMAGE_LIMITS.targetBytes) break;
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext('2d', { alpha: Boolean(info.hasTransparency), desynchronized: true });
+        if (!context) throw new ImageProcessingError('processing', 'No hay memoria suficiente para optimizar la fotografía.');
+        context.imageSmoothingEnabled = true;
+        context.imageSmoothingQuality = 'high';
+        drawOriented(context, decoded, state, width, height);
+        for (const quality of qualities) {
+          abortIfNeeded(signal);
+          const blob = await canvasBlob(canvas, outputMime, quality);
+          if (!best || blob.size < best.blob.size) best = { blob, width, height, quality };
+          if (blob.size <= limits.targetBytes) break;
+          await nextFrame();
+        }
+        if (best.blob.size <= limits.targetBytes || Math.max(width, height) <= limits.minLongEdge) break;
+        const scale = Math.max(limits.minLongEdge / Math.max(width, height), 0.85);
+        width = Math.max(1, Math.round(width * scale));
+        height = Math.max(1, Math.round(height * scale));
         await nextFrame();
       }
-      if (best.blob.size <= IMAGE_LIMITS.targetBytes || Math.max(width, height) <= IMAGE_LIMITS.minLongEdge) break;
-      const scale = Math.max(IMAGE_LIMITS.minLongEdge / Math.max(width, height), 0.85);
-      width = Math.max(1, Math.round(width * scale));
-      height = Math.max(1, Math.round(height * scale));
-      await nextFrame();
+    } finally {
+      canvas.width = canvas.height = 0;
+      canvas = null;
     }
 
-    canvas.width = canvas.height = 0;
-    canvas = null;
-    if (!best || best.blob.size > IMAGE_LIMITS.maxOutputBytes) throw new ImageProcessingError('output-too-large', 'No fue posible reducir la fotografía a un tamaño seguro sin afectar demasiado su calidad.');
+    if (!best || best.blob.size > limits.maxOutputBytes) throw new ImageProcessingError('output-too-large', 'No fue posible reducir la fotografía a un tamaño seguro sin afectar demasiado su calidad.');
     const resultFile = new File([best.blob], outputName(file.name, outputExtension), { type: outputMime, lastModified: file.lastModified || Date.now() });
+    const verified = await decodeImage(resultFile, { kind: MIME_DETAILS[outputMime].kind, orientation: 1 }, signal);
+    try {
+      const expectedRatio = originalWidth / originalHeight;
+      const actualRatio = verified.width / verified.height;
+      if (verified.width !== best.width || verified.height !== best.height || ratioDifference(actualRatio, expectedRatio) > 0.005) {
+        throw new ImageProcessingError('aspect-ratio', 'No fue posible conservar las proporciones de la fotografía. El archivo no se subirá.');
+      }
+    } finally {
+      verified.close();
+    }
     return {
       file: resultFile,
       optimized: true,
@@ -336,6 +447,7 @@ export function imageProcessingMessage(error) {
   if (code === 'heic-unsupported') return 'Este navegador no puede convertir la foto HEIC/HEIF. Actualízalo o configura la cámara en “Más compatible” (JPG).';
   if (code === 'unsupported-format' || code === 'mime-mismatch' || code === 'not-image') return 'El archivo no es una fotografía compatible. Usa JPG, PNG, WebP, AVIF, HEIC o HEIF.';
   if (code === 'corrupt') return 'No pudimos leer esta fotografía porque parece estar dañada. Intenta seleccionarla nuevamente.';
+  if (code === 'aspect-ratio') return error.message;
   if (code === 'dimensions-too-large' || code === 'output-too-large') return error.message;
   if (error?.name === 'AbortError') return 'El procesamiento fue cancelado.';
   return 'No pudimos procesar esta fotografía. Intenta seleccionarla nuevamente o utiliza una imagen JPG, PNG o WebP.';

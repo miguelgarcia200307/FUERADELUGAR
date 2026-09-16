@@ -1,4 +1,5 @@
-import { getBrands, getCategories, getDiscountSortedProductIds, getEntityById, getEntityBySlug, getFilterOptions, getProducts, getProductsByIds, getPublishedProductCountsByTeam, getTeams, searchProducts } from '../lib/api.js';
+import { getBrands, getCategories, getDiscountSortedProductIds, getEntityById, getEntityBySlug, getFilterOptions, getHomepageBanners, getProducts, getProductsByIds, getPublishedProductCountsByTeam, getTeams, searchProducts } from '../lib/api.js';
+import { createHomeBanner } from '../lib/home-banner.js';
 import { loadSettings } from '../components/layout.js';
 import { renderProducts, renderProductSkeletons } from '../components/product-card.js';
 import { renderProductSection } from '../components/product-section.js';
@@ -10,14 +11,27 @@ import { getFavorites, setFavorites } from '../lib/store.js';
 const PAGE_SIZE = 20;
 
 export async function initHome() {
-  const [categories, teams, promos, newest, featured, settings] = await Promise.all([
+  const settings = await loadSettings();
+  const [categories, teams, promos, newest, featured, banners] = await Promise.all([
     getCategories(), getTeams(), getProducts({ pageSize: 8, promotion: true }),
-    getProducts({ pageSize: 8, sort: 'newest' }), getProducts({ pageSize: 8, featured: true }), loadSettings()
+    getProducts({ pageSize: 8, sort: 'newest' }), getProducts({ pageSize: 8, featured: true }),
+    settings.banner_enabled ? getHomepageBanners().catch(error => {
+      console.warn('No se pudieron cargar los banners de inicio:', error);
+      return [];
+    }) : Promise.resolve([])
   ]);
   const parents = categories.filter(category => !category.parent_id && category.slug !== 'promo').slice(0, 8);
   const categoriesRoot = $('#home-categories');
   categoriesRoot.classList.remove('skeleton-row');
   categoriesRoot.innerHTML = parents.map(categoryQuickItem).join('');
+  if (settings.banner_enabled && banners.length) {
+      const section = $('#home-banner-section');
+      section.hidden = false;
+      const controller = createHomeBanner($('#home-banner-root'), {
+        enabled: true, intervalSeconds: settings.banner_interval_seconds, banners
+      }, { onEmpty: () => { section.hidden = true; } });
+      window.addEventListener('pagehide', controller.stop, { once: true });
+  }
 
   const promoted = promos.products
     .filter(product => product.promo_price != null)

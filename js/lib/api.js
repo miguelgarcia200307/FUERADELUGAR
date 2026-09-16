@@ -32,6 +32,45 @@ export async function getSettings() {
   return unwrap(await supabase.from('site_settings').select('*').eq('id', 1).single());
 }
 
+export async function getHomepageBanners({ all = false } = {}) {
+  let query = supabase.from('homepage_banners')
+    .select('id,desktop_image_url,mobile_image_url,alt_text,link_url,active,sort_order')
+    .order('sort_order').order('id');
+  if (!all) query = query.eq('active', true);
+  return unwrap(await query);
+}
+
+export async function saveHomepageBanners(enabled, intervalSeconds, banners) {
+  return unwrap(await supabase.rpc('save_homepage_banners', {
+    new_enabled: Boolean(enabled), new_interval: Number(intervalSeconds),
+    new_banners: banners
+  }));
+}
+
+export async function uploadBannerImage(file) {
+  const extension = { 'image/webp': 'webp', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/avif': 'avif' }[file.type];
+  if (!extension || file.size > 1048576) throw new Error('La imagen optimizada debe pesar menos de 1 MB.');
+  const path = `home/${crypto.randomUUID()}.${extension}`;
+  unwrap(await supabase.storage.from('banner-images').upload(path, file, {
+    contentType: file.type, cacheControl: '31536000', upsert: false
+  }));
+  return supabase.storage.from('banner-images').getPublicUrl(path).data.publicUrl;
+}
+
+export async function removeBannerImage(assetUrl) {
+  if (!/^https:\/\//i.test(assetUrl || '')) return false;
+  let url;
+  try { url = new URL(assetUrl); } catch { return false; }
+  if (url.origin !== new URL(supabase.supabaseUrl).origin) return false;
+  const marker = '/storage/v1/object/public/banner-images/';
+  const position = url.pathname.indexOf(marker);
+  if (position < 0) return false;
+  const path = decodeURIComponent(url.pathname.slice(position + marker.length));
+  if (!/^home\/[0-9a-f-]+\.(?:webp|jpg|jpeg|png|avif)$/.test(path)) return false;
+  unwrap(await supabase.storage.from('banner-images').remove([path]));
+  return true;
+}
+
 export async function getCategories({ all = false } = {}) {
   let query = supabase.from('categories').select('*').order('sort_order').order('name');
   if (!all) query = query.eq('active', true);

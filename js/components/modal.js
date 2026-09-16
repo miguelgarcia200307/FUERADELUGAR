@@ -1,6 +1,6 @@
 let openModalCount = 0;
 
-export function openModal({ title, content, onClose, className = '', description = '', trigger = null, headerIcon = '', initialFocus = '' } = {}) {
+export function openModal({ title, content, onClose, className = '', description = '', trigger = null, headerIcon = '', initialFocus = '', closeOnBackdrop = true, closeOnEscape = true } = {}) {
   const root = document.querySelector('#modal-root') || document.body;
   const previousFocus = trigger || document.activeElement;
   const backdrop = document.createElement('div');
@@ -36,9 +36,9 @@ export function openModal({ title, content, onClose, className = '', description
     else setTimeout(finalize, 140);
   };
   backdrop.querySelector('.modal__close').addEventListener('click', () => close());
-  backdrop.addEventListener('click', event => { if (event.target === backdrop) close(); });
+  if (closeOnBackdrop) backdrop.addEventListener('click', event => { if (event.target === backdrop) close(); });
   keyHandler = event => {
-    if (event.key === 'Escape') { event.preventDefault(); close(); return; }
+    if (event.key === 'Escape') { event.preventDefault(); if (closeOnEscape) close(); return; }
     if (event.key !== 'Tab') return;
     const focusable = [...backdrop.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')]
       .filter(element => !element.hidden && element.offsetParent !== null);

@@ -179,18 +179,25 @@ async function decodeWithImageElement(file, info, signal) {
   }
 }
 
-async function decodeImage(file, info, signal) {
+async function decodeImage(file, info, signal, maxLongEdge = 0) {
   abortIfNeeded(signal);
   if (typeof createImageBitmap === 'function') {
     try {
-      // Resizing and EXIF orientation are intentionally separate operations. Some
-      // engines apply the physical resize dimensions after rotating the bitmap,
-      // which permanently stretches portrait phone photos.
-      const bitmap = await createImageBitmap(file, {
+      const options = {
         imageOrientation: 'from-image',
         premultiplyAlpha: 'default',
         colorSpaceConversion: 'default'
-      });
+      };
+      if (maxLongEdge > 0 && info.width && info.height && Math.max(info.width, info.height) > maxLongEdge) {
+        const orientation = info.orientation >= 1 && info.orientation <= 8 ? info.orientation : 1;
+        const orientationApplied = orientation === 1 || await decoderAppliesExifOrientation('bitmap');
+        const dimensions = orientationApplied ? orientedDimensions(info.width, info.height, orientation) : { width: info.width, height: info.height };
+        const scale = Math.min(1, maxLongEdge / Math.max(dimensions.width, dimensions.height));
+        options.resizeWidth = Math.max(1, Math.round(dimensions.width * scale));
+        options.resizeHeight = Math.max(1, Math.round(dimensions.height * scale));
+        options.resizeQuality = 'high';
+      }
+      const bitmap = await createImageBitmap(file, options);
       if (signal?.aborted) bitmap.close();
       abortIfNeeded(signal);
       return { source: bitmap, width: bitmap.width, height: bitmap.height, decoder: 'bitmap', close: () => bitmap.close() };
@@ -344,7 +351,10 @@ export async function prepareProductImage(file, { onStatus = () => {}, signal, l
   const mustBakeOrientation = info.orientation > 1;
   const mustConvert = info.kind === 'heic' || info.kind === 'heif';
   const mustCompress = forceOptimize || file.size > limits.targetBytes;
-  const decoded = await decodeImage(file, info, signal);
+  // Decode oversized photographs directly at the working resolution. Keeping a
+  // full-size bitmap (and a second full-size preview in the editor) can exhaust
+  // Chrome's renderer after the Windows file picker closes.
+  const decoded = await decodeImage(file, info, signal, limits.maxLongEdge);
   try {
     if (!decoded.width || !decoded.height) throw new ImageProcessingError('corrupt', 'La fotografía no contiene dimensiones válidas.');
     if (decoded.width * decoded.height > IMAGE_LIMITS.maxPixels) throw new ImageProcessingError('dimensions-too-large', 'La resolución de esta fotografía supera el límite seguro de procesamiento.');
@@ -353,7 +363,7 @@ export async function prepareProductImage(file, { onStatus = () => {}, signal, l
     const originalWidth = declaredVisual?.width || state.visualWidth;
     const originalHeight = declaredVisual?.height || state.visualHeight;
     const visualLongEdge = Math.max(state.visualWidth, state.visualHeight);
-    const mustResize = visualLongEdge > limits.maxLongEdge;
+    const mustResize = Math.max(originalWidth, originalHeight) > limits.maxLongEdge;
     if (!mustBakeOrientation && !mustConvert && !mustResize && !mustCompress) {
       return {
         file: normalizedFile(file, info),

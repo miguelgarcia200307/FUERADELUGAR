@@ -46,27 +46,32 @@ const bootstrap = `(() => {
 
 await command('Runtime.enable');await command('Page.enable');await command('Network.enable');await command('Network.setCacheDisabled',{cacheDisabled:true});
 await command('Page.addScriptToEvaluateOnNewDocument',{source:bootstrap});
-await command('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
-await command('Page.navigate',{url:'http://localhost:8080/admin/index.html?section=products'});await delay(1300);
+await command('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false});
+await command('Page.navigate',{url:'http://localhost:8080/admin/index.html?section=products'});
+for(let attempt=0;attempt<100;attempt+=1){if(await evaluate(`Boolean(document.querySelector('#new-product'))`))break;await delay(100);}
 
 const result = await evaluate(`(async()=>{
   document.querySelector('#new-product').click();await new Promise(resolve=>setTimeout(resolve,50));const form=document.querySelector('.product-editor');
   form.elements.name.value='Producto con fotos móviles';form.elements.base_price.value='129000';form.elements.status.value='published';form.querySelector('#add-size').click();form.querySelector('#admin-sizes input').value='Única';form.querySelector('#admin-sizes input').dispatchEvent(new Event('change',{bubbles:true}));
   const makeFile=async({width,height,name,noise=false,seedStart=987654321})=>{const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;const context=canvas.getContext('2d');if(noise){const image=context.createImageData(width,height);let seed=seedStart;for(let index=0;index<image.data.length;index+=4){seed=(seed*1664525+1013904223)>>>0;image.data[index]=seed&255;image.data[index+1]=(seed>>>8)&255;image.data[index+2]=(seed>>>16)&255;image.data[index+3]=255;}context.putImageData(image,0,0);}else{context.fillStyle='#168a4c';context.fillRect(0,0,width,height);}const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',noise?1:.86));canvas.width=canvas.height=0;return new File([blob],name,{type:'image/jpeg'});};
-  const heavy=await makeFile({width:2800,height:2000,name:'camara-celular.jpg',noise:true});const heavySecond=await makeFile({width:2700,height:1900,name:'camara-celular-2.jpg',noise:true,seedStart:246813579});const small=await makeFile({width:800,height:600,name:'detalle.jpg'});const transfer=new DataTransfer();transfer.items.add(heavy);transfer.items.add(heavySecond);transfer.items.add(small);form.querySelector('#product-files').files=transfer.files;form.querySelector('#product-files').dispatchEvent(new Event('change',{bubbles:true}));
-  const immediate={cards:form.querySelectorAll('.photo-card').length,statuses:[...form.querySelectorAll('.photo-card__status')].map(node=>node.textContent),submitDisabled:form.querySelector('.form-actions [type="submit"]').disabled,previewBlob:[...form.querySelectorAll('.photo-card img')].every(image=>image.src.startsWith('blob:')),overflow:document.querySelector('.modal--product').scrollWidth>document.querySelector('.modal--product').clientWidth};
-  for(let attempt=0;attempt<160;attempt+=1){if(!form.querySelector('.photo-card--busy'))break;await new Promise(resolve=>setTimeout(resolve,50));}
+  const fileInput=form.querySelector('#product-files');let pickerCalls=0;Object.defineProperty(fileInput,'showPicker',{configurable:true,value:()=>{pickerCalls+=1;}});form.querySelector('#choose-product-files').click();
+  const heavy=await makeFile({width:2800,height:2000,name:'camara-celular.jpg',noise:true});const heavySecond=await makeFile({width:2700,height:1900,name:'camara-celular-2.jpg',noise:true,seedStart:246813579});const small=await makeFile({width:800,height:600,name:'detalle.jpg'});const transfer=new DataTransfer();transfer.items.add(heavy);transfer.items.add(heavySecond);transfer.items.add(small);fileInput.files=transfer.files;fileInput.dispatchEvent(new Event('change',{bubbles:true}));
+  const productModal=document.querySelector('.modal--product');const modalContent=productModal.querySelector('.modal__content');
+  const immediate={pickerCalls,cards:form.querySelectorAll('.photo-card').length,statuses:[...form.querySelectorAll('.photo-card__status')].map(node=>node.textContent),submitDisabled:form.querySelector('.form-actions [type="submit"]').disabled,usesOriginalPreview:[...form.querySelectorAll('.photo-card img')].some(image=>image.src.startsWith('blob:')),overflow:modalContent.scrollWidth>modalContent.clientWidth,inputBox:[fileInput.offsetWidth,fileInput.offsetHeight],stableComposition:getComputedStyle(productModal).animationName==='none'&&getComputedStyle(productModal.querySelector('.modal__head')).backdropFilter==='none'&&getComputedStyle(form.querySelector('.form-actions')).backdropFilter==='none'};
+  for(let attempt=0;attempt<600;attempt+=1){if(!form.querySelector('.photo-card--busy'))break;await new Promise(resolve=>setTimeout(resolve,50));}
   const prepared={statuses:[...form.querySelectorAll('.photo-card__status')].map(node=>node.textContent),details:[...form.querySelectorAll('.photo-card__detail')].map(node=>node.textContent),submitDisabled:form.querySelector('.form-actions [type="submit"]').disabled,progress:form.querySelector('#photo-progress').textContent};
   window.__qa.failNextStorage=true;form.requestSubmit();
-  for(let attempt=0;attempt<80;attempt+=1){if(form.querySelector('.photo-card__status--error'))break;await new Promise(resolve=>setTimeout(resolve,50));}
+  for(let attempt=0;attempt<160;attempt+=1){if(form.querySelector('.photo-card__status--error')&&form.querySelectorAll('.photo-card__status--loaded').length===2&&!form.querySelector('.form-actions [type="submit"]').disabled)break;await new Promise(resolve=>setTimeout(resolve,50));}
   const failed={formOpen:Boolean(document.querySelector('.product-editor')),error:form.querySelector('.photo-card__status--error')?.textContent,detail:form.querySelector('.photo-card__status--error')?.nextElementSibling?.textContent,retry:Boolean(form.querySelector('[data-retry-photo]')),completed:[...form.querySelectorAll('.photo-card__status--loaded')].length,rows:window.__qa.imageRows.length};
-  form.querySelector('[data-retry-photo]').click();
+  form.querySelector('[data-retry-photo]')?.click();
   for(let attempt=0;attempt<120;attempt+=1){if(!document.querySelector('.product-editor'))break;await new Promise(resolve=>setTimeout(resolve,50));}
   return{immediate,prepared,failed,final:{closed:!document.querySelector('.product-editor'),product:window.__qa.product&&{name:window.__qa.product.name,status:window.__qa.product.status},imageRows:window.__qa.imageRows,uploads:window.__qa.uploads,primaryUpdates:window.__qa.primaryUpdates}};
 })()`);
 
 const failures=[];const expect=(condition,message)=>{if(!condition)failures.push(message);};
-expect(result.immediate.cards===3&&result.immediate.submitDisabled&&result.immediate.previewBlob,'No se mostró la preparación inmediata de tres fotos.');
+expect(result.immediate.pickerCalls===1,'El botón no abrió el selector de archivos mediante la API de escritorio.');
+expect(result.immediate.inputBox[0]===1&&result.immediate.inputBox[1]===1&&result.immediate.stableComposition,'El selector conserva una capa de composición inestable en escritorio.');
+expect(result.immediate.cards===3&&result.immediate.submitDisabled&&!result.immediate.usesOriginalPreview,'La preparación inmediata conservó una copia original de alto consumo.');
 expect(result.prepared.statuses.every(status=>status==='Lista para subir')&&!result.prepared.submitDisabled,'Las fotos no quedaron listas antes de guardar.');
 expect(result.prepared.details.filter(detail=>detail.includes('→')).length===2&&result.prepared.details.some(detail=>detail.includes('Sin cambios')),'No se procesaron secuencialmente dos fotos pesadas y una adecuada.');
 expect(result.failed.formOpen&&result.failed.retry&&result.failed.completed===2,'El fallo aislado no conservó el formulario y las otras fotos.');
@@ -75,7 +80,7 @@ expect(result.final.closed&&result.final.imageRows.length===3&&result.final.uplo
 expect(result.final.primaryUpdates>0,'No se conservó una imagen principal global.');
 expect(result.final.imageRows.filter(row=>row.alt_text.endsWith('.webp')).length===2&&result.final.imageRows.some(row=>row.alt_text.endsWith('.jpg')),'Los registros no conservaron formatos coherentes WebP/JPEG.');
 expect(result.final.uploads.every(upload=>/\.(webp|jpg)$/.test(decodeURIComponent(upload.url))),'La extensión de Storage no coincide con el formato.');
-expect(!result.immediate.overflow,'El formulario tiene desbordamiento horizontal en móvil.');
+expect(!result.immediate.overflow,'El formulario tiene desbordamiento horizontal en escritorio.');
 expect(runtimeErrors.length===0,'Hubo excepciones de navegador.');
 
 console.log(JSON.stringify({result,runtimeErrors,consoleErrors,failures},null,2));socket.close();if(failures.length)process.exitCode=1;

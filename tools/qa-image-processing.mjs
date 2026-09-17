@@ -54,7 +54,9 @@ const results = await evaluate(`(async()=>{
 
   const small=await imageTools.prepareProductImage(await makeFile({width:800,height:600,name:'pequena.jpg'}));
   const heavyFile=await makeFile({width:2800,height:2000,quality:1,name:'camara-celular.jpg',noise:true});
-  const heavy=await imageTools.prepareProductImage(heavyFile);
+  const nativeCreateImageBitmap=globalThis.createImageBitmap;const heavyDecodeRequests=[];
+  globalThis.createImageBitmap=(source,options)=>{if(source===heavyFile)heavyDecodeRequests.push(options||{});return nativeCreateImageBitmap(source,options);};
+  const heavy=await imageTools.prepareProductImage(heavyFile);globalThis.createImageBitmap=nativeCreateImageBitmap;
   const transparent=await imageTools.prepareProductImage(await makeFile({width:3000,height:1800,type:'image/png',name:'transparente.png',alpha:true}));
   const transparentBitmap=await createImageBitmap(transparent.file);const alphaCanvas=document.createElement('canvas');alphaCanvas.width=alphaCanvas.height=1;const alphaContext=alphaCanvas.getContext('2d');alphaContext.drawImage(transparentBitmap,0,0,1,1);const transparentAlpha=alphaContext.getImageData(0,0,1,1).data[3];transparentBitmap.close();
   const webp=await imageTools.prepareProductImage(await makeFile({width:900,height:600,type:'image/webp',name:'catalogo.webp'}));
@@ -77,7 +79,7 @@ const results = await evaluate(`(async()=>{
     ['mismatch',new File([await (await makeFile({width:20,height:20,type:'image/png',name:'x.png'})).arrayBuffer()],'falsa.png',{type:'image/jpeg'})],
     ['heic',new File([Uint8Array.from([0,0,0,24,102,116,121,112,104,101,105,99,0,0,0,0,109,105,102,49,104,101,105,99])],'iphone.heic',{type:'image/heic'})]
   ]){try{await imageTools.prepareProductImage(file);errors[key]='accepted';}catch(error){errors[key]={code:error.code,message:imageTools.imageProcessingMessage(error)};}}
-  return{limits:imageTools.IMAGE_LIMITS,small:summary(small),heavy:summary(heavy),heavySourceBytes:heavyFile.size,transparent:{...summary(transparent),sampleAlpha:transparentAlpha},webp:summary(webp),orientation:{detected:inspectedOrientation.orientation,...summary(oriented)},legacyCombinedResize,orientations,aspectGuard,duplicateFingerprint:duplicateA===duplicateB,errors};
+  return{limits:imageTools.IMAGE_LIMITS,small:summary(small),heavy:summary(heavy),heavySourceBytes:heavyFile.size,heavyDecodeRequests,transparent:{...summary(transparent),sampleAlpha:transparentAlpha},webp:summary(webp),orientation:{detected:inspectedOrientation.orientation,...summary(oriented)},legacyCombinedResize,orientations,aspectGuard,duplicateFingerprint:duplicateA===duplicateB,errors};
 })()`);
 
 const failures = [];
@@ -85,6 +87,7 @@ const expect = (condition, message) => { if (!condition) failures.push(message);
 expect(results.small.optimized === false, 'La JPG pequeña no debería recomprimirse.');
 expect(results.heavy.optimized === true && results.heavy.finalBytes < results.heavySourceBytes, 'La fotografía pesada no se redujo.');
 expect(Math.max(...results.heavy.final) <= 2560, 'La fotografía pesada excede 2560 px.');
+expect(results.heavyDecodeRequests.some(request=>Math.max(request.resizeWidth||0,request.resizeHeight||0)===2560),'La fotografía pesada se decodificó a resolución completa.');
 expect(results.heavy.finalBytes <= results.limits.maxOutputBytes, 'La salida pesada excede el máximo seguro.');
 expect(results.transparent.type === 'image/webp' && Math.max(...results.transparent.final) <= 2560, 'La PNG grande/transparente no se convirtió correctamente.');
 expect(results.transparent.sampleAlpha > 0 && results.transparent.sampleAlpha < 255, 'La transparencia de PNG no se conservó.');

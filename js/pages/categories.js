@@ -4,6 +4,7 @@ import { toast } from '../components/toast.js';
 import { $, categoryIdsWithDescendants, categoryInitials, emptyState, escapeHtml, getCategoryUrl, getTeamUrl, localAsset, normalizeText, params, routeSlug, sharePage } from '../lib/helpers.js';
 
 const byName = (a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' });
+const CATEGORY_PAGE_SIZE = 60;
 
 function categoryVisual(category) {
   if (category.image_url) {
@@ -45,11 +46,7 @@ export async function initCategoryListing() {
 
   const parent = requested.parent_id ? categories.find(item => item.id === requested.parent_id) || requested : requested;
   const children = categories.filter(item => item.parent_id === parent.id).sort(byName);
-  const availableIds = categoryIdsWithDescendants(categories, parent.id);
   const initialChild = requested.parent_id ? requested : children.find(item => item.slug === params().get('sub')) || null;
-  const [{ products }] = await Promise.all([
-    getProducts({ categoryId: availableIds, pageSize: 60, sort: 'name' })
-  ]);
 
   document.title = `${parent.name} | Fuera de Lugar Sport`;
   $('#listing-title').textContent = parent.name;
@@ -68,14 +65,23 @@ export async function initCategoryListing() {
   }
 
   let activeChild = initialChild;
-  function productHasCategory(product, categoryId) {
-    return (product.product_categories || []).some(item => item.category_id === categoryId || item.categories?.id === categoryId);
-  }
+  let page = 0;
+  let loaded = [];
+  let requestVersion = 0;
+  const root = $('#listing-products');
+  const loadMore = $('#load-more');
 
-  function renderSelection({ updateUrl = false } = {}) {
-    const activeIds = activeChild ? new Set(categoryIdsWithDescendants(categories, activeChild.id)) : null;
-    const visible = activeIds ? products.filter(product => [...activeIds].some(id => productHasCategory(product, id))) : products;
-    const root = $('#listing-products');
+  async function renderSelection({ updateUrl = false, reset = true } = {}) {
+    if (reset) {
+      page = 0;
+      loaded = [];
+    }
+    const version = ++requestVersion;
+    const categoryIds = categoryIdsWithDescendants(categories, activeChild?.id || parent.id);
+    const result = await getProducts({ categoryId: categoryIds, page, pageSize: CATEGORY_PAGE_SIZE, sort: 'name' });
+    if (version !== requestVersion) return;
+    loaded = reset ? result.products : [...loaded, ...result.products];
+    const total = result.count ?? loaded.length;
     root.classList.remove('skeleton-grid');
     document.querySelectorAll('.category-filter').forEach(button => {
       const selected = button.dataset.category === (activeChild?.slug || '');
@@ -84,11 +90,12 @@ export async function initCategoryListing() {
     });
     const heading = activeChild ? activeChild.name : `Todos los ${normalizeText(parent.name).includes('accesor') ? 'accesorios' : 'productos'}`;
     $('#listing-product-heading').textContent = heading;
-    $('#listing-count').textContent = `${visible.length} producto${visible.length === 1 ? '' : 's'}`;
+    $('#listing-count').textContent = `${total} producto${total === 1 ? '' : 's'}`;
     $('#listing-filters-link').href = `catalogo.html?category=${encodeURIComponent(activeChild?.slug || parent.slug)}`;
-    if (visible.length) renderProducts(root, visible);
+    if (loaded.length) renderProducts(root, loaded);
     else root.innerHTML = emptyState('Todavía no hay productos disponibles', 'Explora otras categorías mientras agregamos novedades.', 'categorias.html', 'Explorar otras categorías');
-    renderTeams(activeChild, teams, visible);
+    loadMore.hidden = loaded.length >= total || result.products.length < CATEGORY_PAGE_SIZE;
+    renderTeams(activeChild, teams, loaded);
     if (updateUrl) {
       const query = new URLSearchParams({ slug: parent.slug });
       if (activeChild) query.set('sub', activeChild.slug);
@@ -96,22 +103,26 @@ export async function initCategoryListing() {
     }
   }
 
-  chips.addEventListener('click', event => {
+  chips.addEventListener('click', async event => {
     const button = event.target.closest('[data-category]');
     if (!button) return;
     activeChild = children.find(item => item.slug === button.dataset.category) || null;
-    renderSelection({ updateUrl: true });
+    await renderSelection({ updateUrl: true });
     $('#listing-product-heading').scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
-  window.addEventListener('popstate', () => {
+  window.addEventListener('popstate', async () => {
     activeChild = children.find(item => item.slug === params().get('sub')) || null;
-    renderSelection();
+    await renderSelection();
+  });
+  loadMore.addEventListener('click', async () => {
+    page += 1;
+    await renderSelection({ reset: false });
   });
   $('#share-listing').addEventListener('click', async () => {
     const result = await sharePage({ title: document.title, text: `Mira ${activeChild?.name || parent.name} en Fuera de Lugar Sport` });
     if (result === 'copied') toast('Enlace copiado');
   });
-  renderSelection();
+  await renderSelection();
 }
 
 function renderTeams(category, teams, products) {

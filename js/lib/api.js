@@ -124,6 +124,18 @@ export async function uploadBannerImage(file) {
   return supabase.storage.from('banner-images').getPublicUrl(path).data.publicUrl;
 }
 
+// Stores the 1280 px desktop copy as home/<uuid>-1280.webp next to the original (same
+// folder and naming rule allowed by the banner Storage policy). The page falls back to
+// the original if this copy is missing.
+export async function uploadBannerVariant(originalUrl, file) {
+  const match = String(originalUrl || '').match(/\/storage\/v1\/object\/public\/banner-images\/(home\/[0-9a-f-]{36})\.(?:webp|jpg|jpeg|png|avif)$/);
+  if (!match || file?.type !== 'image/webp' || file.size > 1048576) return false;
+  unwrap(await supabase.storage.from('banner-images').upload(`${match[1]}-1280.webp`, file, {
+    contentType: 'image/webp', cacheControl: '31536000', upsert: false
+  }));
+  return true;
+}
+
 export async function removeBannerImage(assetUrl) {
   if (!/^https:\/\//i.test(assetUrl || '')) return false;
   let url;
@@ -134,7 +146,8 @@ export async function removeBannerImage(assetUrl) {
   if (position < 0) return false;
   const path = decodeURIComponent(url.pathname.slice(position + marker.length));
   if (!/^home\/[0-9a-f-]+\.(?:webp|jpg|jpeg|png|avif)$/.test(path)) return false;
-  unwrap(await supabase.storage.from('banner-images').remove([path]));
+  const variant = /^home\/[0-9a-f-]{36}\.(?:webp|jpg|jpeg|png|avif)$/.test(path) ? path.replace(/\.[^.]+$/, '-1280.webp') : null;
+  unwrap(await supabase.storage.from('banner-images').remove(variant ? [path, variant] : [path]));
   return true;
 }
 

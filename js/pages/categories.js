@@ -1,14 +1,14 @@
 import { getCategories, getProducts, getTeams } from '../lib/api.js';
 import { renderProducts } from '../components/product-card.js';
 import { toast } from '../components/toast.js';
-import { $, categoryIdsWithDescendants, categoryInitials, emptyState, escapeHtml, getCategoryUrl, getTeamUrl, localAsset, normalizeText, params, routeSlug, sharePage } from '../lib/helpers.js';
+import { $, categoryIdsWithDescendants, categoryInitials, emptyState, escapeHtml, getCategoryUrl, getTeamUrl, IMAGE_FALLBACK_HANDLER, crestSrcset, localAsset, normalizeText, optimizedStorageAsset, params, routeSlug, sharePage } from '../lib/helpers.js';
 
 const byName = (a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' });
 const CATEGORY_PAGE_SIZE = 60;
 
 function categoryVisual(category) {
   if (category.image_url) {
-    return `<img src="${escapeHtml(localAsset(category.image_url))}" alt="" loading="lazy" decoding="async">`;
+    return `<img src="${escapeHtml(optimizedStorageAsset(category.image_url))}" data-original-src="${escapeHtml(localAsset(category.image_url))}" onerror="${IMAGE_FALLBACK_HANDLER}" alt="" loading="lazy" decoding="async" width="480" height="480">`;
   }
   return `<span class="category-card__fallback" aria-hidden="true"><i>${escapeHtml(categoryInitials(category.name))}</i><b></b></span>`;
 }
@@ -149,7 +149,7 @@ function renderTeams(category, teams, products) {
 function teamTile(team) {
   const initials = team.name.split(/\s+/).map(word => word[0]).join('').slice(0, 3).toUpperCase();
   const crest = team.crest_url
-    ? `<span class="team-crest"><img src="${escapeHtml(localAsset(team.crest_url))}" alt="Escudo ${escapeHtml(team.name)}" loading="lazy" decoding="async" data-team-crest-image data-team-initials="${escapeHtml(initials)}"></span>`
+    ? `<span class="team-crest"><img src="${escapeHtml(optimizedStorageAsset(team.crest_url))}" srcset="${escapeHtml(crestSrcset(team.crest_url))}" sizes="50px" data-original-src="${escapeHtml(localAsset(team.crest_url))}" onerror="if(!this.dataset.fallbackApplied){this.dataset.fallbackApplied='true';this.removeAttribute('srcset');this.src=this.dataset.originalSrc}else if(this.parentElement){this.hidden=true;this.parentElement.classList.add('team-crest--fallback');this.parentElement.textContent=this.dataset.teamInitials}" alt="Escudo ${escapeHtml(team.name)}" width="88" height="88" loading="lazy" decoding="async" data-team-crest-image data-team-initials="${escapeHtml(initials)}"></span>`
     : `<span class="team-crest team-crest--fallback">${escapeHtml(initials)}</span>`;
   return `<a class="team-card" href="${getTeamUrl(team.slug)}">${crest}<strong>${escapeHtml(team.name)}</strong><small>Ver productos</small></a>`;
 }

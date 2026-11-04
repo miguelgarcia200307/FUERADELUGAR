@@ -3,3 +3,5 @@
 !.env.example
 backups/
 node_modules/
+# Perfiles de navegador de QA (locales, no versionar)
+.qa/*-profile/

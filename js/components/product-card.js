@@ -2,6 +2,41 @@ import { currentPrice, discountPercent, escapeHtml, formatMoney, getProductUrl, 
 import { isFavorite, toggleFavorite } from '../lib/store.js';
 import { toast } from './toast.js';
 
+let productCardImageObserver;
+let productCardObserverHeight = 0;
+let productCardObserverResizeBound = false;
+
+function observeProductCardImages(root) {
+  const images = root.querySelectorAll('img[data-lazy-src]:not([data-lazy-bound])');
+  if (!images.length) return;
+  if (!('IntersectionObserver' in window)) {
+    images.forEach(image => { image.src = image.dataset.lazySrc; image.dataset.lazyBound = 'true'; });
+    return;
+  }
+  const viewportHeight = Math.max(1, window.innerHeight);
+  if (!productCardImageObserver || productCardObserverHeight !== viewportHeight) {
+    productCardImageObserver?.disconnect();
+    productCardObserverHeight = viewportHeight;
+    productCardImageObserver = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        const image = entry.target;
+        image.src = image.dataset.lazySrc;
+        image.dataset.lazyBound = 'true';
+        delete image.dataset.lazySrc;
+        productCardImageObserver.unobserve(image);
+      });
+    }, { rootMargin: `${Math.min(500, Math.round(viewportHeight * 0.5))}px 0px`, threshold: 0 });
+    document.querySelectorAll('img[data-lazy-src]:not([data-lazy-bound])').forEach(image => productCardImageObserver.observe(image));
+    if (!productCardObserverResizeBound) {
+      window.addEventListener('resize', () => { productCardObserverHeight = 0; observeProductCardImages(document); }, { passive: true });
+      productCardObserverResizeBound = true;
+    }
+    return;
+  }
+  images.forEach(image => productCardImageObserver.observe(image));
+}
+
 function totalStock(product) {
   return (product.product_variants || []).filter(v => v.active).reduce((sum, variant) => sum + Number(variant.stock || 0), 0);
 }
@@ -23,7 +58,7 @@ export function productCard(product, { hideTeamLabel = false } = {}) {
         : isNew ? '<span class="status-badge status-badge--new">NUEVO</span>' : '';
   return `<article class="product-card" data-product-id="${product.id}">
     <div class="product-card__media${stock === 0 ? ' is-sold-out' : ''}">
-      <a href="${getProductUrl(product.slug)}" aria-label="Ver ${escapeHtml(product.name)}"><img src="${productImage(product)}" data-original-src="${escapeHtml(localAsset((product.product_images || product.images || []).find(image => image.is_primary)?.url || product.image_url))}" alt="${escapeHtml(product.name)}" loading="lazy" decoding="async" width="500" height="625"></a>
+      <a href="${getProductUrl(product.slug)}" aria-label="Ver ${escapeHtml(product.name)}"><img data-lazy-src="${productImage(product)}" data-original-src="${escapeHtml(localAsset((product.product_images || product.images || []).find(image => image.is_primary)?.url || product.image_url))}" alt="${escapeHtml(product.name)}" loading="lazy" decoding="async" width="500" height="625"></a>
       ${badge}
       <button class="product-card__favorite ${isFavorite(product.id) ? 'active' : ''}" type="button" aria-label="${isFavorite(product.id) ? 'Quitar de' : 'Agregar a'} favoritos" data-favorite="${product.id}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.7a5.4 5.4 0 0 0-7.7 0L12 5.8l-1.1-1.1a5.4 5.4 0 0 0-7.7 7.7L12 21l8.8-8.6a5.4 5.4 0 0 0 0-7.7Z"></path></svg></button>
     </div>
@@ -32,6 +67,7 @@ export function productCard(product, { hideTeamLabel = false } = {}) {
 }
 
 export function bindProductCards(root = document) {
+  observeProductCardImages(root);
   root.querySelectorAll('img[data-original-src]:not([data-fallback-bound])').forEach(image => {
     image.dataset.fallbackBound = 'true';
     image.addEventListener('error', () => {

@@ -127,7 +127,7 @@ const filteredCatalog = await evaluate(`(() => {
 const routes = [];
 for (const route of [
   'promociones.html', 'categorias.html', 'equipos.html', 'favoritos.html', 'carrito.html',
-  'equipo.html?slug=real-madrid', 'categoria.html?slug=guayos', 'producto.html?slug=balon-futbol-match-numero-5'
+  'equipo.html?slug=real-madrid', 'categoria.html?slug=guayos', 'producto.html?slug=arsenal-25-26-2'
 ]) {
   await command('Page.navigate', { url: `http://localhost:8080/${route}` });
   await delay(2400);

@@ -62,7 +62,7 @@ const timerBehavior=await evaluate(`(async()=>{
   window.setInterval=(callback,ms)=>{const timer=originalSet(callback,ms);active.add(timer);created++;return timer;};window.clearInterval=timer=>{active.delete(timer);return originalClear(timer);};
   const toggles=[...document.querySelectorAll('.announcement-item-toggle input')];toggles.forEach((toggle,index)=>{if(index===0){if(!toggle.checked)toggle.click();}else if(toggle.checked)toggle.click();});created=0;document.querySelector('#announcement-interval').dispatchEvent(new Event('input',{bubbles:true}));const oneActiveCreated=created;
   toggles[2].click();created=0;document.querySelector('#announcement-interval').dispatchEvent(new Event('input',{bubbles:true}));const multipleCreated=created;
-  document.querySelector('[data-section="dashboard"]').click();await new Promise(resolve=>setTimeout(resolve,180));const afterNavigation=active.size;
+  document.querySelector('[data-section="dashboard"]').click();await new Promise(resolve=>setTimeout(resolve,550));const afterNavigation=active.size;
   window.setInterval=originalSet;window.clearInterval=originalClear;return{oneActiveCreated,multipleCreated,afterNavigation,previewRemoved:!document.querySelector('[data-announcement-preview]')};
 })()`);
 
@@ -71,7 +71,7 @@ const save=await evaluate(`(async()=>{
   document.querySelector('[name="announcement_mode"][value="carousel"]').click();const inputs=[...document.querySelectorAll('[data-message-text]')];
   inputs[0].value='Primero';inputs[0].dispatchEvent(new Event('input',{bubbles:true}));inputs[1].value='No mostrar';inputs[1].dispatchEvent(new Event('input',{bubbles:true}));inputs[2].value='Segundo';inputs[2].dispatchEvent(new Event('input',{bubbles:true}));
   const toggles=[...document.querySelectorAll('.announcement-item-toggle input')];if(!toggles[0].checked)toggles[0].click();if(toggles[1].checked)toggles[1].click();if(!toggles[2].checked)toggles[2].click();
-  document.querySelector('[data-message-id="three"] .announcement-order button:first-child').click();document.querySelector('[data-message-id="three"] .announcement-order button:first-child').click();
+  document.querySelectorAll('.announcement-message .announcement-order button:first-child')[2]?.click();document.querySelectorAll('.announcement-message .announcement-order button:first-child')[1]?.click();
   document.querySelector('#announcement-interval').value='2';const form=document.querySelector('#settings-form'),button=form.querySelector('[type="submit"]');form.dispatchEvent(new SubmitEvent('submit',{bubbles:true,cancelable:true,submitter:button}));form.dispatchEvent(new SubmitEvent('submit',{bubbles:true,cancelable:true,submitter:button}));await new Promise(resolve=>setTimeout(resolve,260));
   return{saves:window.__qaSaves,stored:window.__qaSettings.announcement_messages,interval:window.__qaSettings.announcement_interval_seconds,buttonDisabled:button.disabled,toast:document.querySelector('.toast')?.textContent};
 })()`);

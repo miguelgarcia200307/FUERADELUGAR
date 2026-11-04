@@ -1,5 +1,5 @@
 import { clearRecentSearches, getRecentSearches, getSearchSuggestions, saveRecentSearch } from '../lib/search.js';
-import { categoryInitials, currentPrice, debounce, escapeHtml, formatMoney, getCategoryUrl, getProductUrl, getTeamUrl, localAsset } from '../lib/helpers.js';
+import { categoryInitials, currentPrice, debounce, escapeHtml, formatMoney, getCategoryUrl, getProductUrl, getTeamUrl, IMAGE_FALLBACK_HANDLER, localAsset, optimizedStorageAsset, optimizedStorageImage } from '../lib/helpers.js';
 
 const searchIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="m16 16 4 4"></path></svg>';
 
@@ -16,14 +16,14 @@ function entityRow(item, type) {
     brand: { label: 'Marca', url: `marca.html?slug=${encodeURIComponent(item.slug)}`, image: item.logo_url, icon: '◇' }
   }[type];
   return `<a class="search-result search-result--entity search-result--${type}" href="${config.url}">
-    <span class="search-result__thumb">${config.image ? `<img src="${localAsset(config.image)}" alt="">` : config.icon}</span>
+    <span class="search-result__thumb">${config.image ? `<img src="${escapeHtml(optimizedStorageAsset(config.image, 'icon'))}" data-original-src="${escapeHtml(localAsset(config.image))}" onerror="${IMAGE_FALLBACK_HANDLER}" alt="" width="44" height="44" decoding="async">` : config.icon}</span>
     <span><small>${config.label}</small><strong>${escapeHtml(item.name)}</strong></span><span class="search-result__arrow">›</span>
   </a>`;
 }
 
 function productRow(item) {
   return `<a class="search-result" href="${getProductUrl(item.slug)}">
-    <span class="search-result__thumb"><img src="${localAsset(item.image_url)}" alt=""></span>
+    <span class="search-result__thumb"><img src="${escapeHtml(optimizedStorageImage(item.image_url, 'thumb'))}" data-original-src="${escapeHtml(localAsset(item.image_url))}" onerror="${IMAGE_FALLBACK_HANDLER}" alt="" width="44" height="44" decoding="async"></span>
     <span><small>${item.promotion ? 'Promoción' : escapeHtml(item.team_name || item.brand_name || 'Producto')}</small><strong>${escapeHtml(item.name)}</strong></span>
     <span class="search-result__price">${formatMoney(currentPrice(item))}</span>
   </a>`;

@@ -1,3 +1,5 @@
+import { bannerVariant } from './helpers.js';
+
 export const BANNER_MIN = 0.5;
 export const BANNER_MAX = 60;
 export const BANNER_LIMIT = 5;
@@ -79,7 +81,20 @@ export function createHomeBanner(root, data, { preview = false, onEmpty = () => 
     img.loading = slideIndex === 0 ? 'eager' : 'lazy';
     if (slideIndex === 0 && !preview) img.setAttribute('fetchpriority', 'high');
     img.dataset.src = item.desktop_image_url;
+    // Desktop originals are up to 1920 px; a 1280 px WebP next to them covers 1x screens.
+    const variant = bannerVariant(item.desktop_image_url);
+    if (variant) {
+      img.dataset.srcset = `${variant} 1280w, ${item.desktop_image_url} 1920w`;
+      img.sizes = '(min-width: 1290px) 1240px, calc(100vw - 3rem)';
+    }
     listen(img, 'error', () => {
+      if (img.srcset && !img.dataset.variantFailed) {
+        img.dataset.variantFailed = 'true';
+        img.removeAttribute('srcset');
+        img.removeAttribute('sizes');
+        img.src = item.desktop_image_url;
+        return;
+      }
       console.warn('No se pudo cargar una imagen del banner', item.id || slideIndex);
       slide.remove();
       const dot = dots.querySelector(`[data-index="${slideIndex}"]`);
@@ -106,6 +121,7 @@ export function createHomeBanner(root, data, { preview = false, onEmpty = () => 
     const entry = elements[position];
     if (!entry || !entry.slide.isConnected) return;
     if (entry.source && !entry.source.srcset) entry.source.srcset = entry.source.dataset.srcset;
+    if (!entry.img.srcset && entry.img.dataset.srcset && !entry.img.dataset.variantFailed) entry.img.srcset = entry.img.dataset.srcset;
     if (!entry.img.src) entry.img.src = entry.img.dataset.src;
   }
   function schedule() {

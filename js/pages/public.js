@@ -5,7 +5,7 @@ import { renderProducts, renderProductSkeletons } from '../components/product-ca
 import { renderProductSection } from '../components/product-section.js';
 import { toast } from '../components/toast.js';
 import { buildProductFilterSections, createFilterPanel } from '../components/filter-panel.js';
-import { $, $$, categoryIdsWithDescendants, categoryInitials, currentPrice, debounce, discountPercent, emptyState, escapeHtml, getCategoryUrl, getTeamUrl, isPromoActive, localAsset, normalizeText, params, routeSlug, sharePage } from '../lib/helpers.js';
+import { $, $$, categoryIdsWithDescendants, categoryInitials, currentPrice, debounce, discountPercent, emptyState, escapeHtml, getCategoryUrl, getTeamUrl, isPromoActive, IMAGE_FALLBACK_HANDLER, crestSrcset, localAsset, normalizeText, optimizedStorageAsset, params, routeSlug, sharePage } from '../lib/helpers.js';
 import { getFavorites, setFavorites } from '../lib/store.js';
 
 const PAGE_SIZE = 20;
@@ -326,7 +326,7 @@ function isAvailable(product) {
 
 function categoryQuickItem(category) {
   const visual = category.image_url
-    ? `<img src="${localAsset(category.image_url)}" alt="" loading="eager">`
+    ? `<img src="${optimizedStorageAsset(category.image_url, 'icon')}" data-original-src="${escapeHtml(localAsset(category.image_url))}" onerror="${IMAGE_FALLBACK_HANDLER}" alt="" loading="lazy" decoding="async" width="128" height="128">`
     : `<span>${escapeHtml(categoryInitials(category.name))}</span>`;
   return `<a class="quick-category" href="${getCategoryUrl(category.slug)}"><i>${visual}</i><strong>${escapeHtml(category.name.replace('Uniformes de fútbol ', 'Uniformes '))}</strong></a>`;
 }
@@ -338,7 +338,7 @@ function teamTypeLabel(type) {
 function teamCard(team, { directory = false, eager = false } = {}) {
   const initials = team.name.split(/\s+/).map(word => word[0]).join('').slice(0, 3).toUpperCase();
   const crest = team.crest_url
-    ? `<span class="team-crest"><img src="${localAsset(team.crest_url)}" alt="Escudo de ${escapeHtml(team.name)}" width="88" height="88" loading="${eager ? 'eager' : 'lazy'}" decoding="async" data-team-crest-image data-team-initials="${escapeHtml(initials)}"></span>`
+    ? `<span class="team-crest"><img src="${optimizedStorageAsset(team.crest_url)}" srcset="${crestSrcset(team.crest_url)}" sizes="${directory ? 80 : 50}px" data-original-src="${escapeHtml(localAsset(team.crest_url))}" onerror="if(!this.dataset.fallbackApplied){this.dataset.fallbackApplied='true';this.removeAttribute('srcset');this.src=this.dataset.originalSrc}else if(this.parentElement){this.hidden=true;this.parentElement.classList.add('team-crest--fallback');this.parentElement.textContent=this.dataset.teamInitials}" alt="Escudo de ${escapeHtml(team.name)}" width="88" height="88" loading="${eager ? 'eager' : 'lazy'}" decoding="async" data-team-crest-image data-team-initials="${escapeHtml(initials)}"></span>`
     : `<span class="team-crest team-crest--fallback" aria-hidden="true">${escapeHtml(initials)}</span>`;
   if (!directory) return `<a class="team-card" href="${getTeamUrl(team.slug)}" aria-label="Ver productos de ${escapeHtml(team.name)}">${crest}<strong>${escapeHtml(team.name)}</strong><small>Ver productos</small></a>`;
   const productCount = Number.isFinite(team.productCount)
@@ -541,7 +541,7 @@ async function initTeamListing(slug, initialEntity = null) {
   crestRoot.className = `team-collection-crest team-crest${entity.crest_url ? '' : ' team-crest--fallback'}`;
   crestRoot.removeAttribute('aria-hidden');
   crestRoot.innerHTML = entity.crest_url
-    ? `<img src="${localAsset(entity.crest_url)}" alt="Escudo de ${escapeHtml(entity.name)}" width="80" height="80" loading="eager" decoding="async" data-team-crest-image data-team-initials="${escapeHtml(initials)}">`
+    ? `<img src="${optimizedStorageAsset(entity.crest_url)}" srcset="${crestSrcset(entity.crest_url)}" sizes="80px" data-original-src="${escapeHtml(localAsset(entity.crest_url))}" onerror="if(!this.dataset.fallbackApplied){this.dataset.fallbackApplied='true';this.removeAttribute('srcset');this.src=this.dataset.originalSrc}else if(this.parentElement){this.hidden=true;this.parentElement.classList.add('team-crest--fallback');this.parentElement.textContent=this.dataset.teamInitials}" alt="Escudo de ${escapeHtml(entity.name)}" width="80" height="80" loading="eager" decoding="async" data-team-crest-image data-team-initials="${escapeHtml(initials)}">`
     : `<span aria-hidden="true">${escapeHtml(initials)}</span>`;
   $('#breadcrumbs').innerHTML = `<a href="index.html">Inicio</a><span aria-hidden="true">›</span><a href="equipos.html">Equipos</a><span aria-hidden="true">›</span><span aria-current="page">${escapeHtml(entity.name)}</span>`;
   document.title = `${entity.name} | Fuera de Lugar Sport`;

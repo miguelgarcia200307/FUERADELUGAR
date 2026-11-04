@@ -469,6 +469,28 @@ export async function generateProductImageVariants(file) {
   } finally { bitmap.close?.(); }
 }
 
+// Width-limited WebP copy (used for the 1280 px desktop banner variant). Never upscales;
+// returns null when the browser cannot encode WebP.
+export async function resizeImageToWebp(file, maxWidth, quality = 0.8) {
+  const bitmap = await createImageBitmap(file);
+  try {
+    const scale = Math.min(1, maxWidth / bitmap.width);
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d', { alpha: true });
+    if (!context) return null;
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = 'high';
+    context.drawImage(bitmap, 0, 0, width, height);
+    const blob = await canvasBlob(canvas, 'image/webp', quality);
+    canvas.width = canvas.height = 0;
+    return blob?.type === 'image/webp' ? new File([blob], `${maxWidth}.webp`, { type: 'image/webp' }) : null;
+  } finally { bitmap.close?.(); }
+}
+
 export function formatBytes(bytes) {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 KB';
   if (bytes < MIB) return `${Math.max(1, Math.round(bytes / 1024))} KB`;

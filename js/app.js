@@ -4,13 +4,14 @@ const page = document.body.dataset.page;
 
 function applyBrandAssets() {
   const prefix = location.pathname.includes('/admin/') ? '../' : '';
-  const iconUrl = `${prefix}img/logo-icon.png`;
+  const iconUrl = `${prefix}img/favicon-64.png`;
+  const touchIconUrl = `${prefix}img/apple-touch-icon.png`;
   const icons = [...document.querySelectorAll('link[rel~="icon"]')];
-  if (icons.length) icons.forEach(icon => { icon.href = iconUrl; icon.type = 'image/png'; icon.sizes = '256x256'; });
-  else document.head.insertAdjacentHTML('beforeend', `<link rel="icon" type="image/png" sizes="256x256" href="${iconUrl}">`);
+  if (icons.length) icons.forEach(icon => { icon.href = iconUrl; icon.type = 'image/png'; icon.sizes = '64x64'; });
+  else document.head.insertAdjacentHTML('beforeend', `<link rel="icon" type="image/png" sizes="64x64" href="${iconUrl}">`);
   let touchIcon = document.querySelector('link[rel="apple-touch-icon"]');
   if (!touchIcon) { touchIcon = document.createElement('link'); touchIcon.rel = 'apple-touch-icon'; document.head.append(touchIcon); }
-  touchIcon.href = iconUrl;
+  touchIcon.href = touchIconUrl;
 }
 
 applyBrandAssets();

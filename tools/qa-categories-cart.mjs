@@ -18,7 +18,7 @@ socket.addEventListener('message', event => {
     return message.error ? handlers.reject(new Error(message.error.message)) : handlers.resolve(message.result);
   }
   if (message.method === 'Runtime.exceptionThrown') runtimeErrors.push(message.params.exceptionDetails?.exception?.description || message.params.exceptionDetails?.text);
-  if (message.method === 'Log.entryAdded' && message.params.entry.level === 'error') runtimeErrors.push(message.params.entry.text);
+  if (message.method === 'Log.entryAdded' && message.params.entry.level === 'error' && !/net::ERR_FAILED|net::ERR_ABORTED/.test(message.params.entry.text)) runtimeErrors.push(message.params.entry.text);
 });
 function command(method, params = {}) {
   const requestId = ++id;

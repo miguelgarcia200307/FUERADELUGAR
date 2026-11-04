@@ -115,6 +115,39 @@ export function optimizedStorageImage(url, size = 'thumb') {
   } catch { return original; }
 }
 
+// Local WebP copies of category images and team crests:
+// thumb = 480 px (category tiles) / 180 px (crests); icon = 128 px (category quick access) / 96 px (crests).
+export function optimizedStorageAsset(url, size = 'thumb') {
+  const original = localAsset(url);
+  if (!url || !/^https?:/i.test(original) || !['thumb', 'icon'].includes(size)) return original;
+  try {
+    const parsed = new URL(original);
+    const match = parsed.pathname.match(/^(.*\/storage\/v1\/object\/public\/(?:category-images|team-crests))\/(.+)$/);
+    if (!match || match[2].startsWith('optimized/')) return original;
+    const sourcePath = decodeURIComponent(match[2]);
+    if (!/\.(?:jpe?g|png|webp|avif)$/i.test(sourcePath)) return original;
+    const extensionless = sourcePath.replace(/\.[^.]+$/, '');
+    if (extensionless.split('/').some(part => !part || part === '.' || part === '..')) return original;
+    return `${pagePrefix()}assets/images/storage-optimized/${match[1].endsWith('category-images') ? 'category-images' : 'team-crests'}/optimized/${size}/${extensionless}.webp`;
+  } catch { return original; }
+}
+
+// srcset for team crests: 96 px for the usual 45-86 CSS px rendering, 180 px for HiDPI.
+export function crestSrcset(url) {
+  const icon = optimizedStorageAsset(url, 'icon');
+  if (icon === localAsset(url)) return '';
+  return `${icon} 96w, ${optimizedStorageAsset(url, 'thumb')} 180w`;
+}
+
+// Desktop homepage banners also exist as home/<uuid>-1280.webp next to the original.
+export function bannerVariant(url, width = 1280) {
+  const match = String(url || '').match(/^(https:\/\/[^?#]+\/storage\/v1\/object\/public\/banner-images\/home\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.(?:webp|jpe?g|png|avif)$/i);
+  return match ? `${match[1]}-${width}.webp` : '';
+}
+
+// Restores the original URL once if an optimized local/variant image is missing.
+export const IMAGE_FALLBACK_HANDLER = "if(!this.dataset.fallbackApplied){this.dataset.fallbackApplied='true';this.removeAttribute('srcset');this.src=this.dataset.originalSrc}";
+
 export function productImage(product, colorId = null) {
   return optimizedStorageImage(productImageOriginal(product, colorId), 'thumb');
 }

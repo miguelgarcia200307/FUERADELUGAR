@@ -3,8 +3,8 @@ import { renderProducts } from '../components/product-card.js';
 import { createProductCustomizer } from '../components/product-customizer.js';
 import { openModal } from '../components/modal.js';
 import { toast } from '../components/toast.js';
-import { $, $$, currentPrice, discountPercent, escapeHtml, formatMoney, getCategoryUrl, isPromoActive, localAsset, params, productImage, routeSlug, sharePage, setButtonLoading } from '../lib/helpers.js';
-import { imageLoadStatus, loadImage, observeImageElement, scheduleImagePreload } from '../lib/image-loader.js';
+import { $, $$, currentPrice, discountPercent, escapeHtml, formatMoney, getCategoryUrl, isPromoActive, localAsset, params, productImage, productImageAtSize, routeSlug, sharePage, setButtonLoading, versionedStorageUrl } from '../lib/helpers.js';
+import { imageLoadStatus, loadImage, observeImageElement } from '../lib/image-loader.js';
 import { addCartItem, getCart, isFavorite, toggleFavorite, updateCartLine } from '../lib/store.js';
 
 const icons = {
@@ -52,14 +52,11 @@ export async function initProduct() {
   let galleryIndex = 0;
   let galleryRequestId = 0;
   let thumbnailObserver = null;
-  let cancelSecondaryPreload = () => {};
-  let cancelAlternatePreload = () => {};
   let mainCtaSeen = false;
   const fallbackProductImage = localAsset('assets/images/product-white.svg');
   const initialGalleryImages = imagesForColor(selectedColor);
   const initialGalleryImage = initialGalleryImages[0] || { url: fallbackProductImage, alt_text: product.name };
-  const initialImageUrl = localAsset(initialGalleryImage.url);
-  const initialColorId = selectedColor?.id || null;
+  const initialImageUrl = productImageAtSize(initialGalleryImage, 'md');
 
   function variantFor(colorId, sizeId) {
     return (product.product_variants || []).find(variant => (variant.color_id || null) === (colorId || null) && variant.size_id === sizeId && variant.active);
@@ -142,20 +139,15 @@ export async function initProduct() {
     galleryIndex = 0;
     const track = $('#gallery-track');
     thumbnailObserver?.disconnect();
-    cancelSecondaryPreload();
     track.innerHTML = galleryImages.map((image, index) => {
-      const url = escapeHtml(localAsset(image.url));
+      const url = escapeHtml(productImageAtSize(image, 'thumb'));
+      const original = escapeHtml(versionedStorageUrl(image.url));
       const source = index === 0 ? `src="${url}"` : `data-src="${url}"`;
-      return `<button class="gallery__thumb ${index === 0 ? 'active' : ''}" data-image="${index}" type="button" aria-label="Ver imagen ${index + 1} de ${galleryImages.length}" aria-current="${index === 0 ? 'true' : 'false'}"><img ${source} alt="" loading="lazy" decoding="async" width="124" height="124"></button>`;
+      return `<button class="gallery__thumb ${index === 0 ? 'active' : ''}" data-image="${index}" type="button" aria-label="Ver imagen ${index + 1} de ${galleryImages.length}" aria-current="${index === 0 ? 'true' : 'false'}"><img ${source} data-original-src="${original}" alt="" loading="lazy" decoding="async" width="124" height="124"></button>`;
     }).join('');
     track.hidden = galleryImages.length < 2;
     initializeProgressiveThumbnails();
-    const requestedColorId = selectedColor?.id || null;
-    showImage(0, { priority: 'high' }).then(shown => {
-      if (!shown || (selectedColor?.id || null) !== requestedColorId) return;
-      const secondaryUrls = galleryImages.slice(1, 2).map(image => localAsset(image.url));
-      cancelSecondaryPreload = scheduleImagePreload(secondaryUrls, { concurrency: 1, priority: 'low', delay: 1100, timeout: 2200 });
-    });
+    showImage(0, { priority: 'high' });
   }
 
   function updateGalleryControls() {
@@ -173,12 +165,21 @@ export async function initProduct() {
     gallery.setAttribute('aria-busy', String(busy));
   }
 
-  function commitMainImage(url, alt, requestId) {
+  function commitMainImage(url, alt, requestId, image) {
     if (requestId !== galleryRequestId) return false;
     const main = $('#main-product-image');
     main.classList.remove('is-changing', 'image-fallback');
     delete main.dataset.fallbackApplied;
     main.src = url;
+    const md = productImageAtSize(image, 'md');
+    const lg = productImageAtSize(image, 'lg');
+    if (url === md) {
+      main.srcset = `${md} 800w, ${lg} 1200w`;
+      main.sizes = '(min-width: 1100px) 55vw, 90vw';
+    } else {
+      main.removeAttribute('srcset');
+      main.removeAttribute('sizes');
+    }
     main.dataset.imageUrl = url;
     main.alt = alt;
     $('.gallery__main').classList.remove('is-error');
@@ -192,7 +193,8 @@ export async function initProduct() {
     galleryIndex = (index + galleryImages.length) % galleryImages.length;
     const image = galleryImages[galleryIndex];
     const main = $('#main-product-image');
-    const url = localAsset(image.url);
+    const original = versionedStorageUrl(image.url);
+    const url = productImageAtSize(image, 'md');
     const alt = image.alt_text || `${product.name}, imagen ${galleryIndex + 1}`;
     const requestId = ++galleryRequestId;
     updateGalleryControls();
@@ -202,11 +204,16 @@ export async function initProduct() {
       setGalleryBusy(false);
       return true;
     }
-    if (imageLoadStatus(url) === 'loaded') return commitMainImage(url, alt, requestId);
+    if (imageLoadStatus(url) === 'loaded') return commitMainImage(url, alt, requestId, image);
     setGalleryBusy(true);
     try {
-      await loadImage(url, { priority, retry: true });
-      return commitMainImage(url, alt, requestId);
+      let selectedUrl = url;
+      try { await loadImage(url, { priority, retry: true }); }
+      catch {
+        selectedUrl = original;
+        await loadImage(original, { priority, retry: true });
+      }
+      return commitMainImage(selectedUrl, alt, requestId, image);
     } catch {
       if (requestId !== galleryRequestId) return false;
       try { await loadImage(fallbackProductImage, { priority: 'high' }); } catch { /* Local fallback may already be cached. */ }
@@ -224,6 +231,11 @@ export async function initProduct() {
 
   function initializeProgressiveThumbnails() {
     const track = $('#gallery-track');
+    track.querySelectorAll('img[data-original-src]').forEach(thumbnail => thumbnail.addEventListener('error', () => {
+      if (thumbnail.dataset.fallbackApplied) return;
+      thumbnail.dataset.fallbackApplied = 'true';
+      thumbnail.src = thumbnail.dataset.originalSrc || fallbackProductImage;
+    }, { once: true }));
     const loadThumbnail = async thumbnail => {
       const url = thumbnail.dataset.src;
       if (!url) return;
@@ -233,7 +245,11 @@ export async function initProduct() {
         thumbnail.src = url;
       } catch {
         if (!thumbnail.isConnected || thumbnail.dataset.src !== url) return;
-        thumbnail.src = fallbackProductImage;
+        const original = thumbnail.dataset.originalSrc;
+        if (original) {
+          try { await loadImage(original, { priority: 'low', retry: true }); thumbnail.src = original; }
+          catch { thumbnail.src = fallbackProductImage; }
+        } else thumbnail.src = fallbackProductImage;
         thumbnail.classList.add('image-fallback');
       } finally {
         if (thumbnail.dataset.src === url) delete thumbnail.dataset.src;
@@ -263,7 +279,7 @@ export async function initProduct() {
     openModal({ title: product.name, content: wrapper, className: 'modal--lightbox', trigger, onClose: () => { lightboxRequestId += 1; document.removeEventListener('keydown', keyHandler); } });
     const draw = async () => {
       const image = galleryImages[index];
-      const url = localAsset(image.url);
+      const url = versionedStorageUrl(image.url);
       const requestId = ++lightboxRequestId;
       wrapper.classList.add('is-loading');
       wrapper.setAttribute('aria-busy', 'true');
@@ -524,20 +540,10 @@ export async function initProduct() {
     observer.observe($('#add-cart'));
   }
 
-  const initialImageLoad = observeImageElement($('#main-product-image'), initialImageUrl).catch(() => {});
+  observeImageElement($('#main-product-image'), initialImageUrl).catch(() => {});
   updateGallery();
-  initialImageLoad.finally(() => {
-    const alternatePrimaryUrls = colors
-      .filter(color => color.id !== initialColorId)
-      .map(color => imagesForColor(color)[0])
-      .filter(Boolean)
-      .map(image => localAsset(image.url));
-    cancelAlternatePreload = scheduleImagePreload(alternatePrimaryUrls, { concurrency: 2, priority: 'low', delay: 800, timeout: 2000 });
-  });
   window.addEventListener('pagehide', () => {
     thumbnailObserver?.disconnect();
-    cancelSecondaryPreload();
-    cancelAlternatePreload();
   }, { once: true });
   renderSizes();
   renderPersonalizationCard();

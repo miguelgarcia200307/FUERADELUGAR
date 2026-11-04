@@ -2,7 +2,10 @@ import { supabase } from './supabase.js';
 import { currentPrice, discountPercent, normalizeText } from './helpers.js';
 
 const PRODUCT_SELECT = `
-  *,
+  id,name,slug,description,material,base_price,promo_price,promo_start,promo_end,status,team_id,brand_id,
+  featured,is_personalizable,personalization_price,allow_name,allow_number,allow_logo,allow_font,allow_text_color,
+  force_last_units,force_sold_out,size_guide_text,size_guide_image_url,front_template_url,back_template_url,
+  created_at,updated_at,promo_enabled,care_instructions,purchase_delivery_info,
   teams(id,name,slug,type,crest_url),
   brands(id,name,slug,logo_url),
   product_categories(category_id,categories(id,name,slug,parent_id)),
@@ -19,6 +22,14 @@ const PRODUCT_CARD_SELECT = `
   brands(id,name,slug,logo_url),
   product_variants(stock,active),
   product_images(color_id,url,is_primary,sort_order)
+`;
+
+const PRODUCT_CART_SELECT = `
+  id,name,slug,base_price,promo_price,promo_start,promo_end,promo_enabled,created_at,
+  team_id,brand_id,force_sold_out,force_last_units,
+  teams(id,name,slug,type,crest_url),brands(id,name,slug,logo_url,active),
+  product_colors(id,name,hex_code,sort_order),product_sizes(id,name,sort_order),
+  product_variants(id,color_id,size_id,stock,active,updated_at),product_images(id,color_id,url,alt_text,is_primary,sort_order)
 `;
 
 const PRODUCT_FILTER_SELECT = `
@@ -330,7 +341,7 @@ export async function getProductBySlug(slug) {
 
 export async function getProductsByIds(ids = []) {
   if (!ids.length) return [];
-  const products = unwrap(await supabase.from('products').select(PRODUCT_SELECT).in('id', ids).eq('status', 'published'));
+  const products = unwrap(await supabase.from('products').select(PRODUCT_CART_SELECT).in('id', ids).eq('status', 'published'));
   return ids.map(id => products.find(product => product.id === id)).filter(Boolean);
 }
 
@@ -350,7 +361,12 @@ export async function getEntityBySlug(type, slug) {
 export async function getEntityById(type, id) {
   const table = { category: 'categories', team: 'teams', brand: 'brands' }[type];
   if (!table) throw new Error('Tipo de listado no válido');
-  const entity = unwrap(await supabase.from(table).select('*').eq('id', id).maybeSingle());
+  const columns = {
+    category: 'id,parent_id,name,slug,description,image_url,active,sort_order,created_at,updated_at',
+    team: 'id,name,slug,type,crest_url,active,created_at,updated_at',
+    brand: 'id,name,slug,logo_url,active,created_at,updated_at'
+  }[type];
+  const entity = unwrap(await supabase.from(table).select(columns).eq('id', id).maybeSingle());
   if (!entity) throw new Error('Listado no encontrado');
   return entity;
 }
@@ -380,7 +396,9 @@ export async function validateCart(items) {
   if (!result.error) return result.data;
   console.warn('Cart validation fallback:', result.error.message);
   const variantIds = payload.map(item => item.variant_id);
-  const variants = unwrap(await supabase.from('product_variants').select('*, product_colors(name), product_sizes(name), products(*)').in('id', variantIds));
+  const variants = unwrap(await supabase.from('product_variants')
+    .select('id,product_id,color_id,size_id,stock,active,product_colors(name),product_sizes(name),products(id,name,slug,status,base_price,promo_price,promo_start,promo_end,promo_enabled,force_sold_out)')
+    .in('id', variantIds));
   return payload.map(item => {
     const variant = variants.find(v => v.id === item.variant_id);
     if (!variant) return { variant_id: item.variant_id, valid: false, reason: 'Esta combinación ya no está disponible.' };
@@ -396,11 +414,11 @@ export async function getAdminProducts() {
 
 export async function saveRow(table, values, id = null) {
   const query = id ? supabase.from(table).update(values).eq('id', id) : supabase.from(table).insert(values);
-  return unwrap(await query.select().single());
+  return unwrap(await query.select([...new Set(['id', ...Object.keys(values)])].join(',')).single());
 }
 
 export async function deleteRow(table, id) {
-  return unwrap(await supabase.from(table).delete().eq('id', id).select());
+  return unwrap(await supabase.from(table).delete().eq('id', id).select('id'));
 }
 
 export async function getCatalogEntityDependencies(entityType, entityId) {
@@ -449,7 +467,7 @@ export async function removePaymentMethodAsset(assetUrl = '') {
 }
 
 export async function saveSettings(values) {
-  const saved = unwrap(await supabase.from('site_settings').update(values).eq('id', 1).select().single());
+  const saved = unwrap(await supabase.from('site_settings').update(values).eq('id', 1).select('id').single());
   invalidatePublicRead('settings');
   return saved;
 }
@@ -465,14 +483,14 @@ export async function prepareProductRelations(productId, { categoryIds, colors, 
   for (const [index, item] of colors.entries()) {
     const row = unwrap(await (item.id
       ? supabase.from('product_colors').update({ name: item.name, sort_order: index }).eq('id', item.id)
-      : supabase.from('product_colors').insert({ product_id: productId, name: item.name, sort_order: index })).select().single());
+      : supabase.from('product_colors').insert({ product_id: productId, name: item.name, sort_order: index })).select('id,product_id,name,sort_order').single());
     savedColors.push({ ...row, client_id: item.clientId });
   }
   const savedSizes = [];
   for (const [index, item] of sizes.entries()) {
     const row = unwrap(await (item.id
       ? supabase.from('product_sizes').update({ name: item.name, sort_order: index }).eq('id', item.id)
-      : supabase.from('product_sizes').insert({ product_id: productId, name: item.name, sort_order: index })).select().single());
+      : supabase.from('product_sizes').insert({ product_id: productId, name: item.name, sort_order: index })).select('id,product_id,name,sort_order').single());
     savedSizes.push({ ...row, client_id: item.clientId });
   }
   return {
@@ -504,7 +522,27 @@ async function removeUploadedProductImage(url) {
     if (index < 0) return;
     path = decodeURIComponent(pathname.slice(index + marker.length));
   } catch { return; }
-  if (path && !path.includes('..')) unwrap(await supabase.storage.from('product-images').remove([path]));
+  if (path && !path.includes('..')) {
+    const stem = path.replace(/\.[^.]+$/, '');
+    unwrap(await supabase.storage.from('product-images').remove([path, ...['thumb', 'md', 'lg'].map(size => `optimized/${size}/${stem}.webp`)]));
+  }
+}
+
+async function uploadProductImageSet(file, variants = [], folder = 'uploads') {
+  const url = await uploadImage('product-images', file, folder);
+  const marker = '/storage/v1/object/public/product-images/';
+  const path = decodeURIComponent(new URL(url).pathname.split(marker)[1] || '');
+  const stem = path.replace(/\.[^.]+$/, '');
+  try {
+    for (const variant of variants) {
+      const variantPath = `optimized/${variant.name}/${stem}.webp`;
+      unwrap(await supabase.storage.from('product-images').upload(variantPath, variant.file, { contentType: 'image/webp', cacheControl: '31536000', upsert: false }));
+    }
+    return url;
+  } catch (error) {
+    await supabase.storage.from('product-images').remove([path, ...['thumb', 'md', 'lg'].map(size => `optimized/${size}/${stem}.webp`)]).catch(() => {});
+    throw error;
+  }
 }
 
 export async function syncProductImages(productId, images, colorIds, onProgress = () => {}) {
@@ -520,9 +558,9 @@ export async function syncProductImages(productId, images, colorIds, onProgress 
     image.status = 'uploading'; image.statusDetail = 'Enviando a almacenamiento seguro…'; onProgress(image);
     let url = '';
     try {
-      url = await uploadImage('product-images', image.file, productId);
-      const row = unwrap(await supabase.from('product_images').insert({ product_id: productId, color_id: image.colorKey ? colorIds.get(image.colorKey) || null : null, url, alt_text: image.file.name, is_primary: false, sort_order: image.sortOrder }).select().single());
-      Object.assign(image, row, { file: null, url: row.url || url, status: 'loaded', statusDetail: 'Guardada correctamente', error: null, errorStage: '' });
+      url = await uploadProductImageSet(image.file, image.variants || [], productId);
+      const row = unwrap(await supabase.from('product_images').insert({ product_id: productId, color_id: image.colorKey ? colorIds.get(image.colorKey) || null : null, url, alt_text: image.file.name, is_primary: false, sort_order: image.sortOrder }).select('id,product_id,color_id,url,alt_text,is_primary,sort_order').single());
+      Object.assign(image, row, { file: null, variants: null, url: row.url || url, status: 'loaded', statusDetail: 'Guardada correctamente', error: null, errorStage: '' });
       onProgress(image);
     } catch (error) {
       if (url) try { await removeUploadedProductImage(url); } catch (cleanupError) { console.error('No se pudo limpiar el archivo incompleto:', cleanupError); }

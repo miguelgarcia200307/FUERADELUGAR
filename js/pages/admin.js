@@ -4,7 +4,7 @@ import { chooseAction, confirmAction, openModal } from '../components/modal.js';
 import { toast } from '../components/toast.js';
 import { $, $$, categoryInitials, currentPrice, escapeHtml, formatMoney, getPromotionStatus, isPromoActive, localAsset, normalizeText, paymentInitials, setButtonLoading, slugify } from '../lib/helpers.js';
 import { ANNOUNCEMENT_INTERVAL_MAX, ANNOUNCEMENT_INTERVAL_MIN, ANNOUNCEMENT_TEXT_LIMIT, announcementValues, createAnnouncementController, normalizeAnnouncementSettings, validateAnnouncement } from '../lib/announcement.js';
-import { formatBytes, imageFingerprint, imageProcessingMessage, IMAGE_LIMITS, prepareProductImage } from '../lib/image-processor.js';
+import { formatBytes, generateProductImageVariants, imageFingerprint, imageProcessingMessage, IMAGE_LIMITS, prepareProductImage } from '../lib/image-processor.js';
 
 async function optimizeAdminAsset(file) {
   if (file.type === 'image/svg+xml') return file;
@@ -206,6 +206,7 @@ function openProductForm(product=null){
       if(image.deleted||editorClosed)return;
       if(image.objectUrl)URL.revokeObjectURL(image.objectUrl);
       image.file=result.file;
+      image.variants=await generateProductImageVariants(result.file);
       image.originalFile=null;
       image.name=result.file.name;
       image.objectUrl=URL.createObjectURL(result.file);
@@ -214,7 +215,7 @@ function openProductForm(product=null){
       image.status='ready';
       image.error=null;
       image.errorStage='';
-      image.statusDetail=result.optimized?`${result.originalWidth}×${result.originalHeight}px → ${result.finalWidth}×${result.finalHeight}px · ${formatBytes(result.originalBytes)} → ${formatBytes(result.finalBytes)} · ${result.mime.replace('image/','').toUpperCase()}`:`Sin cambios · ${result.finalWidth}×${result.finalHeight}px · ${formatBytes(result.finalBytes)} · ${result.mime.replace('image/','').toUpperCase()}`;
+      image.statusDetail=`${result.optimized?`${result.originalWidth}×${result.originalHeight}px → ${result.finalWidth}×${result.finalHeight}px · ${formatBytes(result.originalBytes)} → ${formatBytes(result.finalBytes)}`:`Sin cambios · ${result.finalWidth}×${result.finalHeight}px · ${formatBytes(result.finalBytes)}`} · ${result.mime.replace('image/','').toUpperCase()} + variantes WebP`;
       feedback('#photo-feedback',result.optimized?`“${image.name}” fue optimizada y está lista para subir.`:`“${image.name}” ya tenía un tamaño adecuado.`);
     }catch(error){
       if(error?.name==='AbortError')return;

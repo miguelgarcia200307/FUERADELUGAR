@@ -89,12 +89,48 @@ export function localAsset(url = '') {
   return `${pagePrefix()}${url.replace(/^\/?/, '')}`;
 }
 
+export function versionedStorageUrl(url) {
+  const source = localAsset(url);
+  try {
+    const parsed = new URL(source);
+    if (!parsed.pathname.includes('/storage/v1/object/')) return source;
+    parsed.searchParams.set('cacheNonce', 'egress-v2-20261104');
+    return parsed.toString();
+  } catch { return source; }
+}
+
+export function optimizedStorageImage(url, size = 'thumb') {
+  const original = localAsset(url);
+  if (!url || !/^https?:/i.test(original) || !['thumb', 'md', 'lg'].includes(size)) return original;
+  try {
+    const parsed = new URL(original);
+    const match = parsed.pathname.match(/^(.*\/storage\/v1\/object\/public\/product-images)\/(.+)$/);
+    if (!match || match[2].startsWith('optimized/')) return original;
+    const sourcePath = decodeURIComponent(match[2]);
+    const extensionless = sourcePath.replace(/\.[^.]+$/, '');
+    parsed.pathname = `${match[1]}/optimized/${size}/${extensionless.split('/').map(encodeURIComponent).join('/')}.webp`;
+    parsed.search = '';
+    parsed.searchParams.set('cacheNonce', 'egress-v2-20261104');
+    return parsed.toString();
+  } catch { return original; }
+}
+
 export function productImage(product, colorId = null) {
+  return optimizedStorageImage(productImageOriginal(product, colorId), 'thumb');
+}
+
+export function productImageOriginal(product, colorId = null) {
   const images = product?.product_images || product?.images || [];
   const colorImages = colorId ? images.filter(image => image.color_id === colorId) : images;
   const selected = (colorImages.length ? colorImages : images)
     .slice().sort((a, b) => Number(b.is_primary) - Number(a.is_primary) || a.sort_order - b.sort_order)[0];
-  return localAsset(selected?.url || product?.image_url);
+  return versionedStorageUrl(selected?.url || product?.image_url);
+}
+
+export function productImageAtSize(image, size = 'md') {
+  const original = localAsset(typeof image === 'string' ? image : image?.url);
+  if (!original) return original;
+  return optimizedStorageImage(original, size);
 }
 
 export function debounce(fn, delay = 220) {

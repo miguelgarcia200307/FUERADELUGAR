@@ -314,7 +314,7 @@ function summaryItemMarkup(item) {
   const custom = personalizationSummary(item.personalization);
   const image = item.image || 'assets/images/product-white.svg';
   return `<article class="checkout-order-item">
-    <img src="${escapeHtml(image)}" alt="${escapeHtml(item.name)}" loading="lazy">
+    <img src="${escapeHtml(image)}" data-original-src="${escapeHtml(item.imageOriginal || image)}" onerror="if(!this.dataset.fallbackApplied){this.dataset.fallbackApplied='true';this.src=this.dataset.originalSrc}" alt="${escapeHtml(item.name)}" loading="lazy" decoding="async" width="72" height="90">
     <div><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(item.color || 'Color')} · ${escapeHtml(item.size || 'Talla')} · Cant. ${quantity}</span>${custom ? `<small>${escapeHtml(custom)}</small>` : ''}</div>
     <strong>${formatMoney(unit * quantity)}</strong>
   </article>`;

@@ -4,7 +4,7 @@ export const IMAGE_LIMITS = Object.freeze({
   maxInputBytes: 50 * MIB,
   targetBytes: Math.round(640 * 1024),
   maxOutputBytes: 2 * MIB,
-  maxLongEdge: 1800,
+  maxLongEdge: 2000,
   minLongEdge: 1200,
   maxPixels: 220_000_000
 });
@@ -443,6 +443,30 @@ export async function prepareProductImage(file, { onStatus = () => {}, signal, l
   } finally {
     decoded.close();
   }
+}
+
+export async function generateProductImageVariants(file) {
+  const bitmap = await createImageBitmap(file);
+  try {
+    const variants = [];
+    for (const [name, maxEdge] of [['thumb', 400], ['md', 800], ['lg', 1200]]) {
+      const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
+      const width = Math.max(1, Math.round(bitmap.width * scale));
+      const height = Math.max(1, Math.round(bitmap.height * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext('2d', { alpha: true, desynchronized: true });
+      if (!context) throw new ImageProcessingError('processing', 'No hay memoria suficiente para crear las miniaturas WebP.');
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = 'high';
+      context.drawImage(bitmap, 0, 0, width, height);
+      const blob = await canvasBlob(canvas, 'image/webp', 0.78);
+      canvas.width = canvas.height = 0;
+      variants.push({ name, file: new File([blob], `${name}.webp`, { type: 'image/webp' }) });
+    }
+    return variants;
+  } finally { bitmap.close?.(); }
 }
 
 export function formatBytes(bytes) {

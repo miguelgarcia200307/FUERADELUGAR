@@ -2,7 +2,7 @@ import { confirmAction, openModal } from '../components/modal.js';
 import { renderProducts } from '../components/product-card.js';
 import { toast } from '../components/toast.js';
 import { getProducts, getProductsByIds } from '../lib/api.js';
-import { $, currentPrice, emptyState, escapeHtml, formatMoney, isPromoActive, productImage } from '../lib/helpers.js';
+import { $, currentPrice, emptyState, escapeHtml, formatMoney, isPromoActive, productImage, productImageOriginal } from '../lib/helpers.js';
 import { clearCart, getCart, removeCartLine, setCart, updateCartLine } from '../lib/store.js';
 
 let productsById = new Map();
@@ -56,6 +56,7 @@ function refreshLine(item) {
     name: product.name,
     slug: product.slug,
     image: productImage(product, color?.id),
+    imageOriginal: productImageOriginal(product, color?.id),
     color_id: color?.id || item.color_id,
     color: color?.name || item.color,
     size_id: size?.id || item.size_id,
@@ -102,7 +103,7 @@ function cartItemMarkup(item) {
   const meta = product?.teams?.name || product?.brands?.name || '';
   const promo = product && isPromoActive(product);
   return `<article class="cart-item${status.valid ? '' : ' cart-item--invalid'}" data-line="${escapeHtml(item.line_id)}">
-    <a class="cart-item__media" href="producto.html?slug=${encodeURIComponent(item.slug)}" aria-label="Ver ${escapeHtml(item.name)}"><img class="cart-item__image" src="${escapeHtml(item.image)}" alt="${escapeHtml(item.name)}" loading="lazy"></a>
+    <a class="cart-item__media" href="producto.html?slug=${encodeURIComponent(item.slug)}" aria-label="Ver ${escapeHtml(item.name)}"><img class="cart-item__image" src="${escapeHtml(item.image)}" data-original-src="${escapeHtml(item.imageOriginal || item.image)}" onerror="if(!this.dataset.fallbackApplied){this.dataset.fallbackApplied='true';this.src=this.dataset.originalSrc}" alt="${escapeHtml(item.name)}" loading="lazy" decoding="async" width="160" height="200"></a>
     <div class="cart-item__content">
       ${meta ? `<span class="cart-item__meta">${escapeHtml(meta)}</span>` : ''}
       <h3><a href="producto.html?slug=${encodeURIComponent(item.slug)}">${escapeHtml(item.name)}</a></h3>

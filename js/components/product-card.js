@@ -1,4 +1,4 @@
-import { currentPrice, discountPercent, escapeHtml, formatMoney, getProductUrl, isPromoActive, productImage } from '../lib/helpers.js';
+import { currentPrice, discountPercent, escapeHtml, formatMoney, getProductUrl, isPromoActive, localAsset, productImage } from '../lib/helpers.js';
 import { isFavorite, toggleFavorite } from '../lib/store.js';
 import { toast } from './toast.js';
 
@@ -23,7 +23,7 @@ export function productCard(product, { hideTeamLabel = false } = {}) {
         : isNew ? '<span class="status-badge status-badge--new">NUEVO</span>' : '';
   return `<article class="product-card" data-product-id="${product.id}">
     <div class="product-card__media${stock === 0 ? ' is-sold-out' : ''}">
-      <a href="${getProductUrl(product.slug)}" aria-label="Ver ${escapeHtml(product.name)}"><img src="${productImage(product)}" alt="${escapeHtml(product.name)}" loading="lazy" decoding="async" width="500" height="625"></a>
+      <a href="${getProductUrl(product.slug)}" aria-label="Ver ${escapeHtml(product.name)}"><img src="${productImage(product)}" data-original-src="${escapeHtml(localAsset((product.product_images || product.images || []).find(image => image.is_primary)?.url || product.image_url))}" alt="${escapeHtml(product.name)}" loading="lazy" decoding="async" width="500" height="625"></a>
       ${badge}
       <button class="product-card__favorite ${isFavorite(product.id) ? 'active' : ''}" type="button" aria-label="${isFavorite(product.id) ? 'Quitar de' : 'Agregar a'} favoritos" data-favorite="${product.id}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.7a5.4 5.4 0 0 0-7.7 0L12 5.8l-1.1-1.1a5.4 5.4 0 0 0-7.7 7.7L12 21l8.8-8.6a5.4 5.4 0 0 0 0-7.7Z"></path></svg></button>
     </div>
@@ -32,6 +32,15 @@ export function productCard(product, { hideTeamLabel = false } = {}) {
 }
 
 export function bindProductCards(root = document) {
+  root.querySelectorAll('img[data-original-src]:not([data-fallback-bound])').forEach(image => {
+    image.dataset.fallbackBound = 'true';
+    image.addEventListener('error', () => {
+      if (image.dataset.fallbackApplied || !image.dataset.originalSrc) return;
+      image.dataset.fallbackApplied = 'true';
+      image.removeAttribute('srcset');
+      image.src = image.dataset.originalSrc;
+    }, { once: true });
+  });
   root.querySelectorAll('[data-favorite]:not([data-bound])').forEach(button => button.addEventListener('click', event => {
     event.preventDefault();
     event.stopPropagation();

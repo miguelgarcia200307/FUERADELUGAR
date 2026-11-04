@@ -2,10 +2,10 @@ const MIB = 1024 * 1024;
 
 export const IMAGE_LIMITS = Object.freeze({
   maxInputBytes: 50 * MIB,
-  targetBytes: Math.round(2.5 * MIB),
-  maxOutputBytes: 8 * MIB,
-  maxLongEdge: 2560,
-  minLongEdge: 1280,
+  targetBytes: Math.round(640 * 1024),
+  maxOutputBytes: 2 * MIB,
+  maxLongEdge: 1800,
+  minLongEdge: 1200,
   maxPixels: 220_000_000
 });
 
@@ -381,7 +381,7 @@ export async function prepareProductImage(file, { onStatus = () => {}, signal, l
     onStatus('optimizing');
     const outputMime = await supportsWebp() ? 'image/webp' : (info.hasTransparency ? 'image/png' : 'image/jpeg');
     const outputExtension = MIME_DETAILS[outputMime].extension;
-    const qualities = outputMime === 'image/png' ? [undefined] : [0.88, 0.84, 0.80, 0.76, 0.72, 0.68];
+    const qualities = outputMime === 'image/png' ? [undefined] : [0.82, 0.78, 0.75, 0.72];
     const initialScale = Math.min(1, limits.maxLongEdge / visualLongEdge);
     let width = Math.max(1, Math.round(state.visualWidth * initialScale));
     let height = Math.max(1, Math.round(state.visualHeight * initialScale));

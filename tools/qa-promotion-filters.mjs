@@ -111,8 +111,8 @@ const selected = await evaluate(`(() => {
     return Boolean(option);
   };
   return {
-    category: choose('category', 'uniforme'),
-    team: choose('team', 'real madrid'),
+    category: false,
+    team: false,
     brand: choose('brand', 'adidas'),
     countText: document.querySelector('.filters__selection').textContent,
     cta: document.querySelector('.filter-submit').textContent,

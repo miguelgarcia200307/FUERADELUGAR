@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 const screenshots={admin:join(tmpdir(),'fdl-announcement-admin.png'),store:join(tmpdir(),'fdl-announcement-store.png')};
-const tabs=await fetch('http://localhost:9223/json/list').then(response=>response.json());
+const tabs=await fetch('http://localhost:9224/json/list').then(response=>response.json());
 const page=tabs.find(tab=>tab.type==='page');
 if(!page)throw new Error('No se encontró una pestaña para QA.');
 const socket=new WebSocket(page.webSocketDebuggerUrl);

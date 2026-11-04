@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 const screenshotPaths={mobile:join(tmpdir(),'fdl-admin-entities-mobile.png'),categoryCollapsed:join(tmpdir(),'fdl-admin-category-tree-collapsed.png'),categoryExpanded:join(tmpdir(),'fdl-admin-category-tree-expanded.png'),categoryImage:join(tmpdir(),'fdl-admin-category-image-mobile.png'),categoryPublic:join(tmpdir(),'fdl-category-images-mobile.png'),teamMenu:join(tmpdir(),'fdl-admin-team-menu-mobile.png'),password:join(tmpdir(),'fdl-admin-password-mobile.png'),passwordConfirm:join(tmpdir(),'fdl-admin-password-confirm-mobile.png'),paymentAdmin:join(tmpdir(),'fdl-admin-payment-actions-mobile.png'),desktop:join(tmpdir(),'fdl-admin-entities-desktop.png')};
-const tabs=await fetch('http://localhost:9223/json/list').then(response=>response.json());
+const tabs=await fetch('http://localhost:9224/json/list').then(response=>response.json());
 const page=tabs.find(tab=>tab.type==='page');
 if(!page)throw new Error('No se encontró una pestaña para QA.');
 const socket=new WebSocket(page.webSocketDebuggerUrl);

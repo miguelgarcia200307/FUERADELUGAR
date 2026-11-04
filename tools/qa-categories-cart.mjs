@@ -1,4 +1,4 @@
-const base = 'http://localhost:8082/';
+const base = 'http://localhost:8080/';
 const tabs = await fetch('http://localhost:9224/json/list').then(response => response.json());
 const page = tabs.find(tab => tab.type === 'page');
 if (!page) throw new Error('No browser page');
@@ -83,11 +83,19 @@ if (accessoriesLink) {
   }))()`);
 }
 
-await navigate('producto.html?slug=balon-futbol-match-numero-5', 4300);
+await navigate('producto.html?slug=arsenal-25-26-2', 4300);
 const productReady = await evaluate(`(() => ({ button: Boolean(document.querySelector('#add-cart')), disabled: document.querySelector('#add-cart')?.disabled }))()`);
 if (productReady.button && !productReady.disabled) {
+  await evaluate(`(() => {
+    const color = document.querySelector('#color-options [data-color].active') || document.querySelector('#color-options [data-color]:not([disabled])');
+    color?.click();
+    const size = document.querySelector('#size-options [data-size].active') || document.querySelector('#size-options [data-size]:not([disabled])');
+    size?.click();
+  })()`);
+  await wait(250);
   await evaluate(`document.querySelector('#add-cart').click()`);
   await wait(1800);
+  await navigate('carrito.html', 3500);
 } else {
   await navigate('carrito.html', 3500);
 }

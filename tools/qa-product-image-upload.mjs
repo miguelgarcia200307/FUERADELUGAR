@@ -1,4 +1,4 @@
-const tabs = await fetch('http://localhost:9223/json/list').then(response => response.json());
+const tabs = await fetch('http://localhost:9224/json/list').then(response => response.json());
 const page = tabs.find(tab => tab.type === 'page');
 if (!page) throw new Error('No se encontró una pestaña para QA.');
 const socket = new WebSocket(page.webSocketDebuggerUrl);
@@ -76,10 +76,11 @@ expect(result.prepared.statuses.every(status=>status==='Lista para subir')&&!res
 expect(result.prepared.details.filter(detail=>detail.includes('→')).length===2&&result.prepared.details.some(detail=>detail.includes('Sin cambios')),'No se procesaron secuencialmente dos fotos pesadas y una adecuada.');
 expect(result.failed.formOpen&&result.failed.retry&&result.failed.completed===2,'El fallo aislado no conservó el formulario y las otras fotos.');
 expect(result.failed.detail?.includes('almacenamiento'),'No se mostró un error claro de Storage.');
-expect(result.final.closed&&result.final.imageRows.length===3&&result.final.uploads.length===3,'El reintento no completó las tres fotografías.');
+expect(result.final.closed&&result.final.imageRows.length===3&&result.final.uploads.filter(upload=>!upload.url.includes('/optimized/')).length===3,'El reintento no completó las tres imágenes originales.');
 expect(result.final.primaryUpdates>0,'No se conservó una imagen principal global.');
 expect(result.final.imageRows.filter(row=>row.alt_text.endsWith('.webp')).length===2&&result.final.imageRows.some(row=>row.alt_text.endsWith('.jpg')),'Los registros no conservaron formatos coherentes WebP/JPEG.');
-expect(result.final.uploads.every(upload=>/\.(webp|jpg)$/.test(decodeURIComponent(upload.url))),'La extensión de Storage no coincide con el formato.');
+expect(result.final.uploads.filter(upload=>upload.url.includes('/optimized/')).length===9,'No se cargaron las nueve variantes WebP del panel.');
+expect(result.final.uploads.filter(upload=>!upload.url.includes('/optimized/')).every(upload=>/\.(webp|jpg)$/.test(decodeURIComponent(upload.url))),'La extensión de Storage no coincide con el formato.');
 expect(!result.immediate.overflow,'El formulario tiene desbordamiento horizontal en escritorio.');
 expect(runtimeErrors.length===0,'Hubo excepciones de navegador.');
 

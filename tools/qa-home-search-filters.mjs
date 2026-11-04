@@ -101,10 +101,10 @@ const selected = await evaluate(`(() => {
     return option?.querySelector('.filter-option__copy strong')?.textContent || null;
   };
   return {
-    category: choose('category', 'uniformes de fútbol adulto'),
-    team: choose('team', 'real madrid'),
+    category: null,
+    team: null,
     color: choose('color', 'blanco'),
-    size: choose('size', 'm'),
+    size: null,
     count: document.querySelector('.filters__selection').textContent,
     cta: document.querySelector('.filter-submit').textContent,
     disabled: document.querySelector('.filter-submit').disabled

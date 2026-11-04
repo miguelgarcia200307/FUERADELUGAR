@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 const screenshotPaths={dashboard:join(tmpdir(),'fdl-admin-dashboard-mobile.png'),stock:join(tmpdir(),'fdl-admin-stock-mobile.png'),desktop:join(tmpdir(),'fdl-admin-products-desktop.png')};
-const tabs = await fetch('http://localhost:9223/json/list').then(response => response.json());
+const tabs = await fetch('http://localhost:9224/json/list').then(response => response.json());
 const page = tabs.find(tab => tab.type === 'page');
 if (!page) throw new Error('No se encontró una pestaña para QA.');
 

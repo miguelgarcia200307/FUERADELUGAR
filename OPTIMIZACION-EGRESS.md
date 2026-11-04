@@ -58,6 +58,7 @@ Medición fría reproducible con Chromium (`node .qa/measure-real-visit.mjs --ba
 | Imágenes locales (ambos) | 353.816 B | 59.862 B |
 
 - Visitas en 5 GB decimales: escritorio 3.162 → **4.155** contando todo el tráfico; 5.337 → **5.901** contando solo el egress de Supabase. Móvil: 2.883 → **3.459** total; 4.589 de Supabase (sin cambio: en móvil el banner ya usa su imagen móvil de 1.080 px y las tarjetas ya usaban `thumb`).
+- Producción (`https://fueradelugarsport.com`, commit `f732280`, medido tras el despliegue del 2026-11-04): escritorio 1.214.638 B por visita fría (847.413 B de Supabase) y móvil 1.456.732 B (1.089.582 B de Supabase). En vivo: 293 imágenes en 12 rutas y el buscador sin fallos, sin errores de consola, sin originales fuera del zoom, y el zoom funcionando.
 - Referencia histórica (antes de toda la optimización): 5.203.118 bytes por visita de escritorio y 4.884.890 bytes de egress Supabase.
 - Las 15 imágenes más pesadas son ahora el banner de 1.280 px, el `md` del detalle y miniaturas `thumb`; ninguna supera lo que se muestra salvo `thumb` (400 px) en tarjetas de 240 px en pantallas 1x, que ya es la variante más pequeña. El original de 2.000 px solo aparece al abrir el zoom. El catálogo carga 15 de 20 imágenes en escritorio (6 de 20 en móvil) y el resto al desplazarse.
 

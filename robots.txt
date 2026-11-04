@@ -1,0 +1,4 @@
+User-agent: *
+Disallow: /catalogo.html?
+Disallow: /promociones.html?
+Disallow: /index.html?

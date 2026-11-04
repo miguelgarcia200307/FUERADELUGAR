@@ -48,7 +48,7 @@ function homeSearchToolbar(id, mobile = false) {
 }
 
 function brand(settings, { footer = false } = {}) {
-  return `<img class="brand__logo${footer ? ' brand__logo--footer' : ''}" src="${localAsset('img/logo.png')}" alt="${escapeHtml(settings.business_name || 'Fuera de Lugar Sport')}" width="1254" height="522">`;
+  return `<img class="brand__logo${footer ? ' brand__logo--footer' : ''}" src="${localAsset('img/brand.webp')}" alt="${escapeHtml(settings.business_name || 'Fuera de Lugar Sport')}" width="600" height="250" decoding="async">`;
 }
 
 function safeExternalUrl(value) {

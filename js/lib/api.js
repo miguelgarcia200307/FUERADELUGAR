@@ -12,6 +12,55 @@ const PRODUCT_SELECT = `
   product_images(id,color_id,url,alt_text,is_primary,sort_order)
 `;
 
+const PRODUCT_CARD_SELECT = `
+  id,name,slug,base_price,promo_price,promo_start,promo_end,promo_enabled,created_at,
+  team_id,brand_id,force_sold_out,force_last_units,
+  teams(id,name,slug,type,crest_url),
+  brands(id,name,slug,logo_url),
+  product_variants(stock,active),
+  product_images(color_id,url,is_primary,sort_order)
+`;
+
+const PRODUCT_FILTER_SELECT = `
+  id,name,slug,description,material,base_price,promo_price,promo_start,promo_end,promo_enabled,created_at,
+  team_id,brand_id,force_sold_out,force_last_units,
+  teams(id,name,slug,type,crest_url),
+  brands(id,name,slug,logo_url),
+  product_categories(category_id,categories(id,name,slug,parent_id)),
+  product_colors(name,hex_code,sort_order),
+  product_sizes(name,sort_order),
+  product_variants(stock,active),
+  product_images(color_id,url,is_primary,sort_order)
+`;
+
+const CACHE_PREFIX = 'fueradelugar:api:v1:';
+const pendingPublicReads = new Map();
+
+function cachePublicRead(key, ttl, fetcher) {
+  const cacheKey = `${CACHE_PREFIX}${key}`;
+  try {
+    const cached = JSON.parse(sessionStorage.getItem(cacheKey) || 'null');
+    if (cached && Date.now() - cached.savedAt < ttl) return Promise.resolve(cached.data);
+  } catch { /* Storage can be disabled or full; the network request still works. */ }
+  if (pendingPublicReads.has(cacheKey)) return pendingPublicReads.get(cacheKey);
+  const pending = Promise.resolve().then(fetcher).then(data => {
+    try { sessionStorage.setItem(cacheKey, JSON.stringify({ savedAt: Date.now(), data })); }
+    catch { /* Keep the in-memory result even if persistent storage is unavailable. */ }
+    return data;
+  }).finally(() => pendingPublicReads.delete(cacheKey));
+  pendingPublicReads.set(cacheKey, pending);
+  return pending;
+}
+
+function invalidatePublicRead(key) {
+  try { sessionStorage.removeItem(`${CACHE_PREFIX}${key}`); }
+  catch { /* Storage can be disabled; the short TTL remains the fallback. */ }
+}
+
+const PUBLIC_REFERENCE_TTL = 3 * 60 * 1000;
+const PUBLIC_LIST_TTL = 90 * 1000;
+const PUBLIC_SEARCH_TTL = 30 * 1000;
+
 function unwrap({ data, error }) {
   if (error) throw error;
   return data;
@@ -29,22 +78,29 @@ export function storageUploadMessage(error) {
 }
 
 export async function getSettings() {
-  return unwrap(await supabase.from('site_settings').select('*').eq('id', 1).single());
+  return cachePublicRead('settings', PUBLIC_REFERENCE_TTL, async () =>
+    unwrap(await supabase.from('site_settings').select('id,business_name,tagline,whatsapp,phone,email,address,city,schedule,instagram,facebook,tiktok,maps_url,logo_url,default_sort,checkout_behavior,announcement_enabled,announcement_mode,announcement_static_text,announcement_interval_seconds,announcement_messages,banner_enabled,banner_interval_seconds').eq('id', 1).single()));
 }
 
 export async function getHomepageBanners({ all = false } = {}) {
-  let query = supabase.from('homepage_banners')
-    .select('id,desktop_image_url,mobile_image_url,alt_text,link_url,active,sort_order')
-    .order('sort_order').order('id');
-  if (!all) query = query.eq('active', true);
-  return unwrap(await query);
+  const load = async () => {
+    let query = supabase.from('homepage_banners')
+      .select('id,desktop_image_url,mobile_image_url,alt_text,link_url,active,sort_order')
+      .order('sort_order').order('id');
+    if (!all) query = query.eq('active', true);
+    return unwrap(await query);
+  };
+  return all ? load() : cachePublicRead('homepage-banners', PUBLIC_REFERENCE_TTL, load);
 }
 
 export async function saveHomepageBanners(enabled, intervalSeconds, banners) {
-  return unwrap(await supabase.rpc('save_homepage_banners', {
+  const saved = unwrap(await supabase.rpc('save_homepage_banners', {
     new_enabled: Boolean(enabled), new_interval: Number(intervalSeconds),
     new_banners: banners
   }));
+  invalidatePublicRead('homepage-banners');
+  invalidatePublicRead('settings');
+  return saved;
 }
 
 export async function uploadBannerImage(file) {
@@ -72,54 +128,76 @@ export async function removeBannerImage(assetUrl) {
 }
 
 export async function getCategories({ all = false } = {}) {
-  let query = supabase.from('categories').select('*').order('sort_order').order('name');
-  if (!all) query = query.eq('active', true);
-  return unwrap(await query);
+  const load = async () => {
+    let query = supabase.from('categories').select('id,parent_id,name,slug,description,image_url,active,sort_order').order('sort_order').order('name');
+    if (!all) query = query.eq('active', true);
+    return unwrap(await query);
+  };
+  return all ? load() : cachePublicRead('categories', PUBLIC_REFERENCE_TTL, load);
 }
 
 export async function getTeams({ all = false } = {}) {
-  let query = supabase.from('teams').select('*').order('name');
-  if (!all) query = query.eq('active', true);
-  return unwrap(await query);
+  const load = async () => {
+    let query = supabase.from('teams').select('id,name,slug,type,crest_url,active').order('name');
+    if (!all) query = query.eq('active', true);
+    return unwrap(await query);
+  };
+  return all ? load() : cachePublicRead('teams', PUBLIC_REFERENCE_TTL, load);
 }
 
 export async function getPublishedProductCountsByTeam() {
-  const rows = unwrap(await supabase
-    .from('products')
-    .select('team_id')
-    .eq('status', 'published')
-    .not('team_id', 'is', null));
-  return rows.reduce((counts, product) => {
-    counts[product.team_id] = (counts[product.team_id] || 0) + 1;
-    return counts;
-  }, {});
+  return cachePublicRead('published-product-counts-by-team', PUBLIC_REFERENCE_TTL, async () => {
+    const rows = unwrap(await supabase
+      .from('products')
+      .select('team_id')
+      .eq('status', 'published')
+      .not('team_id', 'is', null));
+    return rows.reduce((counts, product) => {
+      counts[product.team_id] = (counts[product.team_id] || 0) + 1;
+      return counts;
+    }, {});
+  });
 }
 
 export async function getBrands({ all = false } = {}) {
-  let query = supabase.from('brands').select('*').order('name');
-  if (!all) query = query.eq('active', true);
-  return unwrap(await query);
+  const load = async () => {
+    let query = supabase.from('brands').select('id,name,slug,logo_url,active').order('name');
+    if (!all) query = query.eq('active', true);
+    return unwrap(await query);
+  };
+  return all ? load() : cachePublicRead('brands', PUBLIC_REFERENCE_TTL, load);
 }
 
 export async function getPaymentMethods({ all = false } = {}) {
-  let query = supabase.from('payment_methods').select('*').order('sort_order').order('name');
+  let query = supabase.from('payment_methods').select('id,name,instructions,sort_order,active,logo_url').order('sort_order').order('name');
   if (!all) query = query.eq('active', true);
   return unwrap(await query);
 }
 
 export async function getFilterOptions() {
-  const [colors, sizes] = await Promise.all([
-    unwrap(await supabase.from('product_colors').select('name,hex_code,sort_order').order('name')),
-    unwrap(await supabase.from('product_sizes').select('name').order('sort_order'))
-  ]);
-  return {
-    colors: [...new Set(colors.map(item => item.name))],
-    colorDetails: [...colors.reduce((items, item) => {
-      if (!items.has(item.name)) items.set(item.name, { name: item.name, hex_code: item.hex_code || '' });
-      return items;
-    }, new Map()).values()],
-    sizes: [...new Set(sizes.map(item => item.name))]
-  };
+  return cachePublicRead('filter-options', PUBLIC_REFERENCE_TTL, async () => {
+    const loadAll = async (table, columns, orderColumn) => {
+      const rows = [];
+      for (let from = 0; ; from += 500) {
+        const page = unwrap(await supabase.from(table).select(columns).order(orderColumn).range(from, from + 499));
+        rows.push(...page);
+        if (page.length < 500) break;
+      }
+      return rows;
+    };
+    const [colors, sizes] = await Promise.all([
+      loadAll('product_colors', 'name,hex_code,sort_order', 'name'),
+      loadAll('product_sizes', 'name', 'sort_order')
+    ]);
+    return {
+      colors: [...new Set(colors.map(item => item.name))],
+      colorDetails: [...colors.reduce((items, item) => {
+        if (!items.has(item.name)) items.set(item.name, { name: item.name, hex_code: item.hex_code || '' });
+        return items;
+      }, new Map()).values()],
+      sizes: [...new Set(sizes.map(item => item.name))]
+    };
+  });
 }
 
 async function idsForFilter(table, column, value) {
@@ -135,11 +213,17 @@ async function productIdsForAvailability(value, teamId) {
   if (teamId) productQuery = Array.isArray(teamId) ? productQuery.in('team_id', teamId) : productQuery.eq('team_id', teamId);
   const products = unwrap(await productQuery);
   if (!products.length) return [];
-  const variants = unwrap(await supabase
-    .from('product_variants')
-    .select('product_id,stock')
-    .in('product_id', products.map(product => product.id))
-    .eq('active', true));
+  const variants = [];
+  for (let from = 0; ; from += 500) {
+    const page = unwrap(await supabase
+      .from('product_variants')
+      .select('product_id,stock')
+      .in('product_id', products.map(product => product.id))
+      .eq('active', true)
+      .range(from, from + 499));
+    variants.push(...page);
+    if (page.length < 500) break;
+  }
   const stockByProduct = variants.reduce((totals, variant) => {
     totals[variant.product_id] = (totals[variant.product_id] || 0) + Number(variant.stock || 0);
     return totals;
@@ -159,9 +243,14 @@ function intersectSets(sets) {
   return [...available.reduce((acc, list) => new Set([...acc].filter(id => list.includes(id))), new Set(available[0]))];
 }
 
-export async function getProducts({
+export async function getProducts(options = {}) {
+  return cachePublicRead(`products:${JSON.stringify(options)}`, PUBLIC_LIST_TTL, () => queryProducts(options));
+}
+
+async function queryProducts({
   page = 0, pageSize = 20, sort = 'featured', categoryId, teamId, brandId,
-  color, size, minPrice, maxPrice, promotion = false, availability, featured, ids, search
+  color, size, minPrice, maxPrice, promotion = false, availability, featured, ids, search,
+  fullProductDetails = false, filterDetails = false
 } = {}) {
   let filteredIds = ids || null;
   const relationIds = intersectSets([
@@ -173,7 +262,8 @@ export async function getProducts({
   if (relationIds) filteredIds = filteredIds ? filteredIds.filter(id => relationIds.includes(id)) : relationIds;
   if (filteredIds && !filteredIds.length) return { products: [], count: 0 };
 
-  let query = supabase.from('products').select(PRODUCT_SELECT, { count: 'exact' }).eq('status', 'published');
+  const selection = fullProductDetails ? PRODUCT_SELECT : filterDetails ? PRODUCT_FILTER_SELECT : PRODUCT_CARD_SELECT;
+  let query = supabase.from('products').select(selection, { count: 'exact' }).eq('status', 'published');
   if (filteredIds) query = query.in('id', filteredIds);
   if (teamId) query = Array.isArray(teamId) ? query.in('team_id', teamId) : query.eq('team_id', teamId);
   if (brandId) query = Array.isArray(brandId) ? query.in('brand_id', brandId) : query.eq('brand_id', brandId);
@@ -247,7 +337,12 @@ export async function getProductsByIds(ids = []) {
 export async function getEntityBySlug(type, slug) {
   const table = { category: 'categories', team: 'teams', brand: 'brands' }[type];
   if (!table) throw new Error('Tipo de listado no válido');
-  const entity = unwrap(await supabase.from(table).select('*').eq('slug', slug).maybeSingle());
+  const columns = {
+    category: 'id,name,slug,description,image_url,parent_id,active,sort_order',
+    team: 'id,name,slug,type,crest_url,active',
+    brand: 'id,name,slug,logo_url,active'
+  }[type];
+  const entity = unwrap(await supabase.from(table).select(columns).eq('slug', slug).maybeSingle());
   if (!entity) throw new Error('Listado no encontrado');
   return entity;
 }
@@ -263,18 +358,20 @@ export async function getEntityById(type, id) {
 export async function searchProducts(term, limit = 8) {
   const clean = term.trim();
   if (clean.length < 2) return [];
-  const rpc = await supabase.rpc('search_products', { search_term: clean, result_limit: limit });
-  if (!rpc.error) return rpc.data;
-  console.warn('RPC search fallback:', rpc.error.message);
-  const { products } = await getProducts({ pageSize: 50 });
-  const words = normalizeText(clean).split(' ');
-  return products.map(product => {
-    const haystack = normalizeText([
-      product.name, product.description, product.material, product.teams?.name, product.brands?.name,
-      ...product.product_colors.map(c => c.name), ...product.product_categories.map(c => c.categories?.name)
-    ].filter(Boolean).join(' '));
-    return { ...product, image_url: product.product_images[0]?.url, team_name: product.teams?.name, brand_name: product.brands?.name, score: words.filter(word => haystack.includes(word)).length };
-  }).filter(item => item.score).sort((a, b) => b.score - a.score).slice(0, limit);
+  return cachePublicRead(`search:${clean.toLowerCase()}:${limit}`, PUBLIC_SEARCH_TTL, async () => {
+    const rpc = await supabase.rpc('search_products', { search_term: clean, result_limit: limit });
+    if (!rpc.error) return rpc.data;
+    console.warn('RPC search fallback:', rpc.error.message);
+    const { products } = await getProducts({ pageSize: 50, filterDetails: true });
+    const words = normalizeText(clean).split(' ');
+    return products.map(product => {
+      const haystack = normalizeText([
+        product.name, product.description, product.material, product.teams?.name, product.brands?.name,
+        ...product.product_colors.map(c => c.name), ...product.product_categories.map(c => c.categories?.name)
+      ].filter(Boolean).join(' '));
+      return { ...product, image_url: product.product_images[0]?.url, team_name: product.teams?.name, brand_name: product.brands?.name, score: words.filter(word => haystack.includes(word)).length };
+    }).filter(item => item.score).sort((a, b) => b.score - a.score).slice(0, limit);
+  });
 }
 
 export async function validateCart(items) {
@@ -352,7 +449,9 @@ export async function removePaymentMethodAsset(assetUrl = '') {
 }
 
 export async function saveSettings(values) {
-  return unwrap(await supabase.from('site_settings').update(values).eq('id', 1).select().single());
+  const saved = unwrap(await supabase.from('site_settings').update(values).eq('id', 1).select().single());
+  invalidatePublicRead('settings');
+  return saved;
 }
 
 export async function prepareProductRelations(productId, { categoryIds, colors, sizes }) {

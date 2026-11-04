@@ -83,7 +83,7 @@ export function bindSearch(root = document) {
         console.error(error);
         panel.innerHTML = '<div class="search-empty"><strong>No pudimos buscar ahora</strong><span>Revisa tu conexión e intenta nuevamente.</span></div>';
       }
-    }, 220);
+    }, 350);
 
     input.addEventListener('focus', () => input.value.trim().length >= 2 ? runSearch() : renderInitial());
     input.addEventListener('input', runSearch);

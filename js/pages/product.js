@@ -153,7 +153,7 @@ export async function initProduct() {
     const requestedColorId = selectedColor?.id || null;
     showImage(0, { priority: 'high' }).then(shown => {
       if (!shown || (selectedColor?.id || null) !== requestedColorId) return;
-      const secondaryUrls = galleryImages.slice(1, 3).map(image => localAsset(image.url));
+      const secondaryUrls = galleryImages.slice(1, 2).map(image => localAsset(image.url));
       cancelSecondaryPreload = scheduleImagePreload(secondaryUrls, { concurrency: 1, priority: 'low', delay: 1100, timeout: 2200 });
     });
   }

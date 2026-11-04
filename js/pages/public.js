@@ -211,10 +211,10 @@ async function initHomeResults({ categories, teams }) {
   async function ensurePanel({ open = false } = {}) {
     if (!setupPromise) setupPromise = (async () => {
       triggers.forEach(trigger => { trigger.disabled = true; trigger.classList.add('is-loading'); });
-      const [brands, options, first] = await Promise.all([getBrands(), getFilterOptions(), getProducts({ pageSize: 500, sort: 'featured' })]);
+      const [brands, options, first] = await Promise.all([getBrands(), getFilterOptions(), getProducts({ pageSize: 500, sort: 'featured', filterDetails: true })]);
       productPool = [...first.products];
       for (let page = 1; productPool.length < (first.count || 0); page += 1) {
-        const next = await getProducts({ page, pageSize: 500, sort: 'featured' });
+        const next = await getProducts({ page, pageSize: 500, sort: 'featured', filterDetails: true });
         productPool.push(...next.products);
         if (!next.products.length) break;
       }
@@ -758,11 +758,11 @@ export async function initPromotions() {
   renderProductSkeletons(productRoot);
   const [categories, teams, brands, options, result] = await Promise.all([
     getCategories(), getTeams(), getBrands(), getFilterOptions(),
-    getProducts({ pageSize: 1000, promotion: true, sort: 'commercial' })
+    getProducts({ pageSize: 1000, promotion: true, sort: 'commercial', filterDetails: true })
   ]);
   const promotionPool = [...result.products];
   for (let page = 1; promotionPool.length < (result.count || 0); page += 1) {
-    const next = await getProducts({ page, pageSize: 1000, promotion: true, sort: 'commercial' });
+    const next = await getProducts({ page, pageSize: 1000, promotion: true, sort: 'commercial', filterDetails: true });
     promotionPool.push(...next.products);
     if (!next.products.length) break;
   }
